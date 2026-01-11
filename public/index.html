@@ -43,7 +43,6 @@
         .action-btns { display: flex; gap: 10px; }
         .btn-icon { background: none; border: none; cursor: pointer; font-size: 1.1rem; transition: 0.2s; }
 
-        /* Modais */
         .modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center; backdrop-filter: blur(4px); }
         .modal-content { background: white; width: 500px; border-radius: 16px; padding: 2rem; position: relative; }
         .form-group { margin-bottom: 1.2rem; display: flex; flex-direction: column; gap: 6px; }
@@ -76,17 +75,7 @@
                         <tr><th>Empresa / CNPJ</th><th>Plano</th><th>Status Conta</th><th>Ações</th></tr>
                     </thead>
                     <tbody id="lista-clientes">
-                        <tr>
-                            <td><strong>Farmácia Central</strong><br><small>12.345.678/0001-90</small></td>
-                            <td>Pro</td>
-                            <td><span class="status-pill status-active">Ativo</span></td>
-                            <td class="action-btns">
-                                <button class="btn-icon" style="color: #f59e0b;" onclick="gerarQRMestre('ID_TESTE_123', 'Farmácia Central')"><i class="fas fa-qrcode"></i></button>
-                                <button class="btn-icon btn-edit" style="color: var(--primary)"><i class="fas fa-edit"></i></button>
-                                <button class="btn-icon btn-delete" style="color: var(--danger)"><i class="fas fa-trash"></i></button>
-                            </td>
-                        </tr>
-                    </tbody>
+                        </tbody>
                 </table>
             </div>
         </section>
@@ -130,14 +119,13 @@
 </div>
 
 <script>
-    const API_URL = "https://pontoback-tau.vercel.app/"; // Substitua pela sua URL da Vercel após o deploy
+    // IMPORTANTE: Altere para a URL oficial após o deploy
+    const API_URL = "https://sua-api.vercel.app/api"; 
 
-    // Carregar dados ao iniciar
     document.addEventListener('DOMContentLoaded', carregarEmpresas);
 
     function switchTab(tab) {
         document.getElementById('tab-empresas').style.display = tab === 'empresas' ? 'block' : 'none';
-        // Se tivesse uma aba de relatórios, adicionaria a lógica aqui
         document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
         document.getElementById('nav-' + tab).classList.add('active');
     }
@@ -145,14 +133,17 @@
     function openModal(id) { document.getElementById(id).style.display = 'flex'; }
     function closeModal(id) { document.getElementById(id).style.display = 'none'; }
 
-    // --- FUNÇÕES DE API ---
-
     async function carregarEmpresas() {
         try {
             const response = await fetch(`${API_URL}/clientes`);
             const empresas = await response.json();
             const tabela = document.getElementById('lista-clientes');
-            tabela.innerHTML = '';
+            tabela.innerHTML = ''; // Limpa registros de fantasia
+
+            if (empresas.length === 0) {
+                tabela.innerHTML = '<tr><td colspan="4" style="text-align:center;">Nenhuma empresa cadastrada.</td></tr>';
+                return;
+            }
 
             empresas.forEach(emp => {
                 tabela.innerHTML += `
@@ -171,6 +162,9 @@
                             <button class="btn-icon" style="color: var(--primary)" onclick="alternarStatus('${emp.id}', '${emp.status}')" title="Bloquear/Desbloquear">
                                 <i class="fas fa-ban"></i>
                             </button>
+                            <button class="btn-icon" style="color: #4f46e5;" onclick="baixarRelatorio('${emp.id}')" title="Baixar AFD">
+                                <i class="fas fa-file-download"></i>
+                            </button>
                             <button class="btn-icon btn-delete" style="color: var(--danger)" onclick="excluirEmpresa('${emp.id}')">
                                 <i class="fas fa-trash"></i>
                             </button>
@@ -180,6 +174,7 @@
             });
         } catch (error) {
             console.error("Erro ao carregar empresas:", error);
+            document.getElementById('lista-clientes').innerHTML = '<tr><td colspan="4" style="color:red; text-align:center;">Erro de conexão com a API.</td></tr>';
         }
     }
 
@@ -227,15 +222,27 @@
         }
     }
 
+    async function baixarRelatorio(id) {
+        try {
+            const response = await fetch(`${API_URL}/clientes/${id}/afd`);
+            const data = await response.json();
+            const blob = new Blob([data.arquivo_afd], { type: 'text/plain' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `AFD_CLIENTE_${id}.txt`;
+            a.click();
+        } catch (error) {
+            alert("Erro ao baixar relatório.");
+        }
+    }
+
     function gerarQRMestre(id, nome) {
         document.getElementById('nome-farmacia-qr').innerText = nome;
         const container = document.getElementById('qrcode-container');
         container.innerHTML = "";
-
-        // Payload que o tablet lerá para se configurar
         const payload = btoa(JSON.stringify({ id: id, nome: nome, api: API_URL }));
         new QRCode(container, { text: payload, width: 200, height: 200 });
-
         openModal('modalQRMestre');
     }
 
