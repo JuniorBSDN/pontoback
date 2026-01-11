@@ -1,0 +1,170 @@
+import os, json
+from flask import Flask, request, jsonify
+from flask_cors import CORS
+import firebase_admin
+from firebase_admin import credentials, firestore
+from datetime import datetime
+import uuid
+
+app = Flask(__name__)
+CORS(app)
+
+# 🔐 Firebase usando UMA variável de ambiente
+if not firebase_admin._apps:
+    firebase_json = os.environ.get("FIREBASE_CREDENTIALS")
+    cred = credentials.Certificate(json.loads(firebase_json))
+    firebase_admin.initialize_app(cred)
+
+db = firestore.client()
+COLLECTION = "clientes"
+
+@app.route("/api/clientes", methods=["GET"])
+def listar_clientes():
+    docs = db.collection(COLLECTION).stream()
+    clientes = []
+
+    for doc in docs:
+        data = doc.to_dict()
+        data["id"] = doc.id
+        clientes.append(data)
+
+    return jsonify(clientes), 200
+
+@app.route("/api/clientes", methods=["POST"])
+def criar_cliente():
+    data = request.json
+
+    novo = {
+        "nome_fantasia": data["nome"],
+        "cnpj": data["cnpj"],
+        "plano": data["plano"],
+        "status": "ativo",
+        "created_at": firestore.SERVER_TIMESTAMP
+    }
+
+    ref = db.collection(COLLECTION).add(novo)
+
+    return jsonify({"id": ref[1].id}), 201
+
+@app.route("/api/clientes/<id>", methods=["PUT"])
+def atualizar_status(id):
+    status = request.json.get("status")
+    db.collection(COLLECTION).document(id).update({"status": status})
+    return jsonify({"message": "Status atualizado"}), 200
+
+@app.route("/api/clientes/<id>", methods=["DELETE"])
+def excluir_cliente(id):
+    db.collection(COLLECTION).document(id).delete()
+    return jsonify({"message": "Empresa excluída"}), 200
+
+@app.route("/api/health")
+def health():
+    return jsonify({"status": "ok"}), 200
+
+
+
+# 📲 ATIVAÇÃO DO TABLET (via QR Code)
+@app.route("/api/tablet/ativar", methods=["POST"])
+def ativar_tablet():
+    data = request.json
+
+    empresa_id = data.get("empresa_id")
+    nome_tablet = data.get("nome", "Tablet Ponto")
+
+    if not empresa_id:
+        return jsonify({"error": "Empresa inválida"}), 400
+
+    tablet_id = str(uuid.uuid4())
+    ip = request.remote_addr
+
+    db.collection("tablets").document(tablet_id).set({
+        "empresa_id": empresa_id,
+        "nome": nome_tablet,
+        "ativo": True,
+        "ultimo_ip": ip,
+        "created_at": firestore.SERVER_TIMESTAMP
+    })
+
+    return jsonify({
+        "tablet_id": tablet_id,
+        "message": "Tablet ativado com sucesso"
+    }), 201
+
+
+# 🕒 BATER PONTO
+@app.route("/api/tablet/bater-ponto", methods=["POST"])
+def bater_ponto():
+    data = request.json
+
+    tablet_id = data.get("tablet_id")
+    cpf = data.get("cpf")
+
+    if not tablet_id or not cpf:
+        return jsonify({"error": "Dados incompletos"}), 400
+
+    tablet = db.collection("tablets").document(tablet_id).get()
+    if not tablet.exists or not tablet.to_dict().get("ativo"):
+        return jsonify({"error": "Tablet não autorizado"}), 403
+
+    empresa_id = tablet.to_dict()["empresa_id"]
+
+    # 🔎 Buscar funcionário
+    funcionarios = db.collection("funcionarios") \
+        .where("empresa_id", "==", empresa_id) \
+        .where("cpf", "==", cpf) \
+        .limit(1).stream()
+
+    funcionario = None
+    for f in funcionarios:
+        funcionario = f
+
+    if not funcionario:
+        return jsonify({"error": "Funcionário não encontrado"}), 404
+
+    funcionario_id = funcionario.id
+
+    agora = datetime.now()
+    data_str = agora.strftime("%Y-%m-%d")
+    hora_str = agora.strftime("%H:%M:%S")
+
+    # 🔁 Definir ENTRADA / SAÍDA automaticamente
+    ultimo = db.collection("registros_ponto") \
+        .where("funcionario_id", "==", funcionario_id) \
+        .order_by("timestamp", direction=firestore.Query.DESCENDING) \
+        .limit(1).stream()
+
+    tipo = "ENTRADA"
+    for u in ultimo:
+        tipo = "SAIDA" if u.to_dict()["tipo"] == "ENTRADA" else "ENTRADA"
+
+    # 🧾 REGISTRO IMUTÁVEL
+    db.collection("registros_ponto").add({
+        "empresa_id": empresa_id,
+        "funcionario_id": funcionario_id,
+        "tablet_id": tablet_id,
+        "tipo": tipo,
+        "data": data_str,
+        "hora": hora_str,
+        "timestamp": firestore.SERVER_TIMESTAMP,
+        "ip": request.remote_addr
+    })
+
+    return jsonify({
+        "message": f"Ponto registrado ({tipo})",
+        "tipo": tipo,
+        "hora": hora_str
+    }), 201
+
+
+# 🩺 STATUS DO TABLET
+@app.route("/api/tablet/status/<tablet_id>")
+def status_tablet(tablet_id):
+    tablet = db.collection("tablets").document(tablet_id).get()
+    if not tablet.exists:
+        return jsonify({"status": "inativo"}), 404
+
+    return jsonify({
+        "status": "ativo",
+        "empresa_id": tablet.to_dict()["empresa_id"]
+    }), 200
+

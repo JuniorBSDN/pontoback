@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Leitor de Ponto</title>
+    <script src="https://unpkg.com/html5-qrcode"></script>
+    <style>
+        body { background: #0f172a; color: white; text-align: center; font-family: sans-serif; }
+        #reader { width: 100%; max-width: 500px; margin: 20px auto; border-radius: 15px; overflow: hidden; }
+        .alert-offline { background: #f59e0b; padding: 10px; display: none; }
+        #geo-status { font-size: 0.8rem; color: #94a3b8; margin-top: 5px; }
+    </style>
+</head>
+<body>
+    <div id="status-offline" class="alert-offline">MODO OFFLINE ATIVO - Sincronização automática ligada</div>
+    <h1 id="unidade-nome">Aguardando Configuração...</h1>
+    <div id="reader"></div>
+    <div id="msg">Aproxime seu crachá (QR Code)</div>
+    <div id="geo-status">📍 Solicitando GPS...</div>
+
+    <script>
+        const STORAGE_KEY = "config_ponto_saas";
+        let scanner;
+
+        // Função auxiliar para capturar GPS com Promessa
+        function obterLocalizacao() {
+            return new Promise((resolve) => {
+                if (!navigator.geolocation) {
+                    resolve({ lat: "não suportado", lon: "não suportado" });
+                }
+                navigator.geolocation.getCurrentPosition(
+                    (pos) => resolve({ lat: pos.coords.latitude, lon: pos.coords.longitude }),
+                    (err) => resolve({ lat: "negado", lon: "negado" }),
+                    { enableHighAccuracy: true, timeout: 5000 }
+                );
+            });
+        }
+
+        async function iniciar() {
+            const config = JSON.parse(localStorage.getItem(STORAGE_KEY) || "null");
+            if (!config) return modoConfig();
+
+            document.getElementById('unidade-nome').innerText = config.nome;
+
+            // Tenta verificar status online, se falhar assume offline e segue
+            try {
+                const res = await fetch(`${config.api}/check-status/${config.id}`);
+                const data = await res.json();
+                if (data.status === 'inadimplente') {
+                    document.body.innerHTML = "<h1 style='color:red;margin-top:50px;'>ACESSO SUSPENSO</h1><p>Contate o administrador para regularizar o sistema.</p>";
+                    return;
+                }
+            } catch(e) {
+                document.getElementById('status-offline').style.display = 'block';
+                document.getElementById('geo-status').innerText = "📍 GPS operando em modo offline";
+            }
+
+            scanner = new Html5QrcodeScanner("reader", { fps: 15, qrbox: 250 });
+            scanner.render(registrarPonto);
+
+            setInterval(sincronizar, 30000);
+        }
+
+        async function registrarPonto(idFuncionario) {
+            const config = JSON.parse(localStorage.getItem(STORAGE_KEY));
+
+            document.getElementById('msg').innerText = "⌛ Capturando localização...";
+            const coordenadas = await obterLocalizacao();
+
+            const batida = {
+                id_cliente: config.id,
+                id_funcionario: idFuncionario,
+                timestamp_local: new Date().toISOString(),
+                geo: coordenadas // Inserção da geolocalização no objeto
+            };
+
+
+
+            try {
+                const res = await fetch(`${config.api}/ponto/registrar`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(batida)
+                });
+
+                if(res.ok) {
+                    alert("✅ Ponto Registrado com sucesso!");
+                } else {
+                    throw new Error();
+                }
+            } catch(e) {
+                // Salva offline preservando as coordenadas capturadas
+                let fila = JSON.parse(localStorage.getItem("fila") || "[]");
+                batida.offline = true;
+                fila.push(batida);
+                localStorage.setItem("fila", JSON.stringify(fila));
+                alert("⚠️ Ponto Capturado Offline! Será sincronizado em instantes.");
+            }
+
+            document.getElementById('msg').innerText = "Aproxime seu crachá (QR Code)";
+        }
+
+        async function sincronizar() {
+            const config = JSON.parse(localStorage.getItem(STORAGE_KEY));
+            if (!config) return;
+
+            let fila = JSON.parse(localStorage.getItem("fila") || "[]");
+            if(fila.length === 0) return;
+
+            console.log(`Sincronizando ${fila.length} registros...`);
+
+            for(let i = fila.length - 1; i >= 0; i--) {
+                try {
+                    const res = await fetch(`${config.api}/ponto/registrar`, {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify(fila[i])
+                    });
+                    if(res.ok) fila.splice(i, 1);
+                } catch(e) {
+                    console.error("Falha na sincronização");
+                    break;
+                }
+            }
+            localStorage.setItem("fila", JSON.stringify(fila));
+        }
+
+        function modoConfig() {
+            scanner = new Html5QrcodeScanner("reader", { fps: 10, qrbox: 250 });
+            scanner.render((txt) => {
+                try {
+                    const configStr = atob(txt);
+                    localStorage.setItem(STORAGE_KEY, configStr);
+                    location.reload();
+                } catch(e) {
+                    alert("QR Code de configuração inválido!");
+                }
+            });
+        }
+
+        iniciar();
+    </script>
+</body>
+</html>

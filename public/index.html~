@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+<meta charset="UTF-8">
+<title>Admin • Sistema de Ponto</title>
+</head>
+<body>
+<h2>Empresas</h2>
+<input id="nome" placeholder="Nome">
+<input id="cnpj" placeholder="CNPJ">
+<button onclick="criar()">Criar</button>
+
+<ul id="lista"></ul>
+
+<script>
+const API="/api";
+
+function carregar(){
+ fetch(`${API}/clientes`).then(r=>r.json()).then(d=>{
+  lista.innerHTML="";
+  d.forEach(e=>{
+    lista.innerHTML+=`<li>${e.nome_fantasia}
+    <button onclick="alert('${e.id}')">QR</button></li>`;
+  })
+ })
+}
+carregar();
+
+function criar(){
+ fetch(`${API}/clientes`,{
+  method:"POST",
+  headers:{'Content-Type':'application/json'},
+  body:JSON.stringify({
+    nome:nome.value,
+    cnpj:cnpj.value,
+    plano:"basico"
+  })
+ }).then(()=>carregar())
+}
+</script>
+</body>
+</html>

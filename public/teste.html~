@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Terminal de Ponto</title>
+    <script src="https://unpkg.com/html5-qrcode"></script>
+    <style>
+        <style>
+        body { font-family: sans-serif; margin: 0; background: #0f172a; color: white; text-align: center; }
+        .container { height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+        #reader { width: 80%; max-width: 500px; border-radius: 20px; overflow: hidden; background: #1e293b; }
+        .status-bar { padding: 20px; font-size: 1.2rem; }
+    </style>
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div id="status-msg">Validando GPS...</div>
+        <div id="reader"></div>
+        <h2 id="farmacia-nome">...</h2>
+    </div>
+
+    <script>
+        const STORAGE_KEY = "config_ponto_saas";
+        let coords = null;
+
+        navigator.geolocation.watchPosition(pos => {
+            coords = { lat: pos.coords.latitude, lon: pos.coords.longitude };
+            document.getElementById('status-msg').innerText = "✅ Localização Ativa";
+        });
+
+        async function iniciar() {
+            const config = localStorage.getItem(STORAGE_KEY);
+            if (!config) {
+                ativarModoConfiguracao();
+            } else {
+                const farmacia = JSON.parse(config);
+                document.getElementById('farmacia-nome').innerText = farmacia.nome;
+                iniciarLeitorDePonto(farmacia);
+            }
+        }
+
+        function ativarModoConfiguracao() {
+            const scanner = new Html5QrcodeScanner("reader", { fps: 10, qrbox: 250 });
+            scanner.render((decodedText) => {
+                localStorage.setItem(STORAGE_KEY, atob(decodedText));
+                location.reload();
+            });
+        }
+
+        function iniciarLeitorDePonto(config) {
+            const scanner = new Html5QrcodeScanner("reader", { fps: 10, qrbox: 250 });
+            scanner.render(async (idFunc) => {
+                await fetch(`${config.api}/registrar-ponto`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        id_farmacia: config.id,
+                        funcionario_id: idFunc,
+                        geo: coords
+                    })
+                });
+                alert("Ponto Registrado!");
+            });
+        }
+        iniciar();
+    </script>
+</body>
+</html>
