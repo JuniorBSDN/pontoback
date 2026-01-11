@@ -2,103 +2,186 @@
 <html lang="pt-br">
 <head>
     <meta charset="UTF-8">
-    <title>Painel Admin - PontoSaaS</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PontoSaaS - Gestão de Conformidade</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+
     <style>
-        :root { --primary: #4f46e5; --bg: #f8fafc; --text: #1e293b; }
-        body { font-family: sans-serif; background: var(--bg); color: var(--text); margin: 0; display: flex; }
-        .sidebar { width: 250px; background: #0f172a; color: white; height: 100vh; padding: 20px; }
-        .content { flex: 1; padding: 40px; }
-        .card { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-        th, td { text-align: left; padding: 12px; border-bottom: 1px solid #e2e8f0; }
-        .btn { padding: 8px 16px; border-radius: 6px; cursor: pointer; border: none; font-weight: bold; }
-        .btn-add { background: var(--primary); color: white; }
-        .modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); align-items: center; justify-content: center; }
-        .modal-content { background: white; padding: 30px; border-radius: 15px; width: 400px; }
+        :root {
+            --primary: #4f46e5; --success: #22c55e; --danger: #ef4444; --warning: #f59e0b;
+            --bg: #f8fafc; --sidebar: #0f172a; --card: #ffffff; --border: #e2e8f0;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Inter', sans-serif; background: var(--bg); display: flex; color: #1e293b; }
+
+        /* Layout Sidebar */
+        .sidebar { width: 260px; background: var(--sidebar); color: white; height: 100vh; padding: 2rem; position: fixed; }
+        .main-content { margin-left: 260px; flex: 1; padding: 2rem; }
+
+        /* Cards e Tabelas */
+        .card { background: var(--card); border-radius: 12px; border: 1px solid var(--border); overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
+        table { width: 100%; border-collapse: collapse; }
+        th { background: #f1f5f9; padding: 1rem; text-align: left; font-size: 0.85rem; text-transform: uppercase; color: #64748b; }
+        td { padding: 1rem; border-bottom: 1px solid var(--border); vertical-align: middle; }
+
+        /* Modais Modernos */
+        .modal { display: none; position: fixed; inset: 0; background: rgba(15, 23, 42, 0.7); align-items: center; justify-content: center; z-index: 1000; backdrop-filter: blur(4px); }
+        .modal-content { background: white; width: 500px; padding: 2rem; border-radius: 16px; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.2); }
+
+        .form-group { margin-bottom: 1.2rem; }
+        label { display: block; margin-bottom: 0.5rem; font-weight: 600; font-size: 0.9rem; }
+        input, select { width: 100%; padding: 0.75rem; border: 1px solid var(--border); border-radius: 8px; font-size: 1rem; }
+
+        .status-pill { padding: 4px 12px; border-radius: 99px; font-size: 0.75rem; font-weight: 700; }
+        .active { background: #dcfce7; color: #166534; }
+        .blocked { background: #fee2e2; color: #991b1b; }
+
+        .btn { padding: 0.75rem 1.5rem; border-radius: 8px; border: none; font-weight: 600; cursor: pointer; transition: 0.2s; }
+        .btn-primary { background: var(--primary); color: white; }
+        .btn-secondary { background: #e2e8f0; color: #475569; }
     </style>
 </head>
 <body>
-    <div class="sidebar"><h2>PontoSaaS</h2></div>
-    <div class="content">
-        <div style="display:flex; justify-content: space-between;">
-            <h1>Empresas Clientes</h1>
-            <button class="btn btn-add" onclick="document.getElementById('mEmpresa').style.display='flex'">+ Nova Empresa</button>
-        </div>
-        <div class="card">
-            <table>
-                <thead><tr><th>Empresa</th><th>Status</th><th>Ações</th></tr></thead>
-                <tbody id="lista"></tbody>
-            </table>
-        </div>
-    </div>
 
-    <div id="mEmpresa" class="modal">
-        <div class="modal-content">
-            <h3>Novo Cadastro</h3>
-            <input type="text" id="n_nome" placeholder="Nome Fantasia" style="width:100%; margin-bottom:10px; padding:8px;">
-            <input type="text" id="n_cnpj" placeholder="CNPJ" style="width:100%; margin-bottom:10px; padding:8px;">
-            <button class="btn btn-add" onclick="salvar()">Salvar</button>
-            <button onclick="document.getElementById('mEmpresa').style.display='none'">Cancelar</button>
+<nav class="sidebar">
+    <h2 style="color: var(--primary); margin-bottom: 2rem;">PontoSaaS</h2>
+    <p style="font-size: 0.8rem; color: #94a3b8;">SISTEMA DE AUDITORIA</p>
+</nav>
+
+<main class="main-content">
+    <header style="display: flex; justify-content: space-between; margin-bottom: 2rem; align-items: center;">
+        <div>
+            <h1>Gestão de Empresas</h1>
+            <p style="color: #64748b;">Conformidade com a Portaria 671/MTP</p>
         </div>
-    </div>
+        <button class="btn btn-primary" onclick="openModal('modalEmpresa')">
+            <i class="fas fa-plus"></i> Nova Empresa
+        </button>
+    </header>
 
-    <div id="mQR" class="modal">
-        <div class="modal-content" style="text-align:center;">
-            <h3>Ativação do Tablet</h3>
-            <div id="qrcode" style="margin:20px auto; display:inline-block;"></div>
-            <br><button onclick="document.getElementById('mQR').style.display='none'">Fechar</button>
-        </div>
-    </div>
-
-    <script>
-        const API = "https://pontoback-tau.vercel.app/api";
-
-        async function carregar() {
-            const res = await fetch(`${API}/clientes`);
-            const dados = await res.json();
-            const corpo = document.getElementById('lista');
-            corpo.innerHTML = dados.map(e => `
+    <div class="card">
+        <table>
+            <thead>
                 <tr>
-                    <td>${e.nome_fantasia}<br><small>${e.cnpj}</small></td>
-                    <td>${e.status}</td>
-                    <td>
-                        <button onclick="gerarQR('${e.id}', '${e.nome_fantasia}')"><i class="fas fa-qrcode"></i></button>
-                        <button onclick="alterarStatus('${e.id}', '${e.status}')"><i class="fas fa-ban"></i></button>
-                        <button onclick="window.open('${API}/clientes/${e.id}/afd')"><i class="fas fa-file-download"></i></button>
-                    </td>
+                    <th>Empresa / Responsável</th>
+                    <th>CNPJ / Identificação</th>
+                    <th>Status Legal</th>
+                    <th>Ações de Registro</th>
                 </tr>
-            `).join('');
-        }
+            </thead>
+            <tbody id="lista-clientes"></tbody>
+        </table>
+    </div>
+</main>
 
-        async function salvar() {
-            await fetch(`${API}/clientes`, {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({nome: document.getElementById('n_nome').value, cnpj: document.getElementById('n_cnpj').value})
-            });
-            location.reload();
-        }
+<div id="modalEmpresa" class="modal">
+    <div class="modal-content">
+        <h2 style="margin-bottom: 1.5rem;">Registro de Nova Unidade</h2>
+        <form id="form-empresa">
+            <div class="form-group">
+                <label>Razão Social / Nome Fantasia</label>
+                <input type="text" id="nome" required placeholder="Ex: Farmácia Central Ltda">
+            </div>
+            <div class="form-group">
+                <label>CNPJ (Somente Números)</label>
+                <input type="text" id="cnpj" required placeholder="00.000.000/0000-00">
+            </div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                <div class="form-group">
+                    <label>Responsável Legal</label>
+                    <input type="text" id="responsavel" required placeholder="Nome do Gestor">
+                </div>
+                <div class="form-group">
+                    <label>Plano de Serviço</label>
+                    <select id="plano">
+                        <option value="basico">Básico (Até 10 func.)</option>
+                        <option value="pro">Pro (Ilimitado)</option>
+                    </select>
+                </div>
+            </div>
+            <div style="display: flex; gap: 1rem; margin-top: 1rem;">
+                <button type="submit" class="btn btn-primary" style="flex: 2;">Registrar e Ativar</button>
+                <button type="button" class="btn btn-secondary" style="flex: 1;" onclick="closeModal('modalEmpresa')">Cancelar</button>
+            </div>
+        </form>
+    </div>
+</div>
 
-        async function alterarStatus(id, atual) {
-            const novo = atual === 'ativo' ? 'inadimplente' : 'ativo';
-            await fetch(`${API}/clientes/${id}`, {
-                method: 'PUT',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({status: novo})
-            });
-            carregar();
-        }
+<div id="modalQR" class="modal">
+    <div class="modal-content" style="text-align: center;">
+        <h2 id="qr-nome-empresa"></h2>
+        <p style="color: #64748b; margin-bottom: 1.5rem;">Aponte o tablet para este código para vincular a unidade</p>
+        <div id="qrcode-container" style="display: inline-block; padding: 1rem; border: 2px solid var(--primary); border-radius: 12px;"></div>
+        <div style="margin-top: 2rem;">
+            <button class="btn btn-secondary" onclick="closeModal('modalQR')">Fechar</button>
+        </div>
+    </div>
+</div>
 
-        function gerarQR(id, nome) {
-            document.getElementById('qrcode').innerHTML = "";
-            const config = btoa(JSON.stringify({id, nome, api: API}));
-            new QRCode(document.getElementById('qrcode'), { text: config, width: 200, height: 200 });
-            document.getElementById('mQR').style.display = 'flex';
-        }
+<script>
+    const API_URL = "https://pontoback-tau.vercel.app/api";
 
-        carregar();
-    </script>
+    async function carregarEmpresas() {
+        const res = await fetch(`${API_URL}/clientes`);
+        const empresas = await res.json();
+        const tabela = document.getElementById('lista-clientes');
+        tabela.innerHTML = empresas.map(emp => `
+            <tr>
+                <td>
+                    <strong>${emp.nome_fantasia}</strong><br>
+                    <small style="color:#64748b">Gestor: ${emp.responsavel || 'Não definido'}</small>
+                </td>
+                <td><code>${emp.cnpj}</code></td>
+                <td>
+                    <span class="status-pill ${emp.status === 'ativo' ? 'active' : 'blocked'}">
+                        ${emp.status.toUpperCase()}
+                    </span>
+                </td>
+                <td>
+                    <button class="btn" style="color:var(--primary)" onclick="abrirQR('${emp.id}', '${emp.nome_fantasia}')" title="Ativar Coletor"><i class="fas fa-tablet-alt"></i></button>
+                    <button class="btn" style="color:var(--warning)" onclick="alternarStatus('${emp.id}', '${emp.status}')" title="Bloquear"><i class="fas fa-ban"></i></button>
+                    <button class="btn" style="color:var(--success)" onclick="baixarAFD('${emp.id}')" title="Exportar AFD"><i class="fas fa-file-csv"></i></button>
+                    <button class="btn" style="color:var(--danger)" onclick="excluirEmpresa('${emp.id}')" title="Excluir"><i class="fas fa-trash"></i></button>
+                </td>
+            </tr>
+        `).join('');
+    }
+
+    document.getElementById('form-empresa').onsubmit = async (e) => {
+        e.preventDefault();
+        const dados = {
+            nome: document.getElementById('nome').value,
+            cnpj: document.getElementById('cnpj').value,
+            responsavel: document.getElementById('responsavel').value,
+            plano: document.getElementById('plano').value
+        };
+
+        await fetch(`${API_URL}/clientes`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(dados)
+        });
+        closeModal('modalEmpresa');
+        carregarEmpresas();
+    };
+
+    function abrirQR(id, nome) {
+        document.getElementById('qr-nome-empresa').innerText = nome;
+        const container = document.getElementById('qrcode-container');
+        container.innerHTML = "";
+        const payload = btoa(JSON.stringify({ id, nome, api: API_URL }));
+        new QRCode(container, { text: payload, width: 200, height: 200 });
+        openModal('modalQR');
+    }
+
+    function baixarAFD(id) { window.open(`${API_URL}/clientes/${id}/afd`, '_blank'); }
+    function openModal(id) { document.getElementById(id).style.display = 'flex'; }
+    function closeModal(id) { document.getElementById(id).style.display = 'none'; }
+
+    // Inicia a aplicação
+    carregarEmpresas();
+</script>
 </body>
 </html>
