@@ -3,201 +3,96 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Leitor de Ponto - PontoSaaS</title>
+    <title>Tablet - PontoSaaS</title>
     <script src="https://unpkg.com/html5-qrcode"></script>
     <style>
-        :root { --primary: #6366f1; --danger: #ef4444; --warning: #f59e0b; }
-        body {
-            background: #0f172a; color: white; text-align: center;
-            font-family: 'Inter', sans-serif; margin: 0;
-            display: flex; flex-direction: column; justify-content: center; min-height: 100vh;
-        }
-        #reader {
-            width: 95%; max-width: 500px; margin: 10px auto;
-            border-radius: 15px; overflow: hidden; border: 2px solid #334155;
-            background: #1e293b;
-        }
-        .alert-offline {
-            background: var(--warning); padding: 12px; position: fixed;
-            top: 0; width: 100%; display: none; font-weight: bold; z-index: 100;
-        }
-        #unidade-nome { font-size: 1.8rem; margin: 0; color: var(--primary); }
-        #geo-status { font-size: 0.9rem; color: #94a3b8; margin-bottom: 15px; }
-        #msg { font-size: 1.1rem; color: #94a3b8; min-height: 1.5em; }
-
-        .btn-camera-manual {
-            background: var(--primary); color: white; border: none;
-            padding: 15px 25px; border-radius: 8px; font-weight: bold;
-            cursor: pointer; display: none; margin: 20px auto;
-        }
-        .btn-reset {
-            background: none; border: 1px solid #334155; color: #475569;
-            padding: 8px 16px; border-radius: 5px; cursor: pointer; margin-top: 30px;
-        }
-        .gps-overlay {
-            display: none; position: fixed; inset: 0; background: rgba(15, 23, 42, 0.95);
-            z-index: 1000; flex-direction: column; align-items: center; justify-content: center; padding: 20px;
-        }
+        body { background: #0f172a; color: white; font-family: sans-serif; text-align: center; margin: 0; display: flex; flex-direction: column; min-height: 100vh; justify-content: center; }
+        #reader { width: 90%; max-width: 500px; margin: 20px auto; border-radius: 12px; border: 2px solid #334155; overflow: hidden; }
+        .btn-cam { background: #4f46e5; color: white; padding: 15px; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; display: none; margin: 10px auto; }
     </style>
 </head>
 <body>
-    <div id="gps-lock" class="gps-overlay">
-        <h2 style="color:var(--danger)">📍 GPS Obrigatório</h2>
-        <p>Para registrar o ponto, você deve permitir o acesso à localização.</p>
-        <button onclick="location.reload()" style="padding:10px 20px;">Tentar Novamente</button>
-    </div>
-
-    <div id="status-offline" class="alert-offline">MODO OFFLINE - Registros salvos localmente</div>
-
-    <h1 id="unidade-nome">Iniciando...</h1>
-    <div id="geo-status">📡 Aguardando GPS...</div>
-
-    <button id="btn-camera-trigger" class="btn-camera-manual" onclick="forçarCamera()">📸 Ativar Câmera</button>
-
+    <h1 id="unidade">Iniciando...</h1>
+    <p id="gps-status">📍 Solicitando GPS...</p>
+    
+    <button id="btnManual" class="btn-cam" onclick="location.reload()">📸 Ativar Câmera Manualmente</button>
+    
     <div id="reader"></div>
-    <p id="msg">Aguardando câmera...</p>
-
-    <button class="btn-reset" onclick="resetConfig()">Reconfigurar Unidade</button>
+    <p id="msg">Aponte o QR Code do Crachá</p>
 
     <script>
-        const STORAGE_KEY = "config_ponto_saas";
-        let scanner = null;
-        let localizacaoAtual = null;
-        let config = JSON.parse(localStorage.getItem(STORAGE_KEY) || "null");
+        const KEY = "config_ponto_saas";
+        let config = JSON.parse(localStorage.getItem(KEY));
+        let scanner, geo = null;
 
         async function iniciar() {
             if (!config) return modoConfig();
+            
+            document.getElementById('unidade').innerText = config.nome;
+            
+            // Iniciar GPS
+            navigator.geolocation.watchPosition(p => {
+                geo = {lat: p.coords.latitude, lng: p.coords.longitude};
+                document.getElementById('gps-status').innerText = "📍 GPS Ativo";
+            }, () => { alert("GPS é obrigatório!"); }, {enableHighAccuracy: true});
 
-            document.getElementById('unidade-nome').innerText = config.nome;
-            obterLocalizacaoConstante();
-            tentarIniciarLeitor();
+            // Iniciar Câmera
+            scanner = new Html5QrcodeScanner("reader", { fps: 10, qrbox: 250 });
+            scanner.render(onScan);
 
-            setInterval(sincronizar, 30000); // Sincroniza offline a cada 30s
+            // Backup se a câmera demorar
+            setTimeout(() => { if(!document.querySelector('video')) document.getElementById('btnManual').style.display='block'; }, 4000);
+            
+            // Sincronizador Offline
+            setInterval(sincronizar, 30000);
         }
 
-        function obterLocalizacaoConstante() {
-            if ("geolocation" in navigator) {
-                navigator.geolocation.watchPosition(
-                    (pos) => {
-                        localizacaoAtual = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-                        document.getElementById('geo-status').innerText = "📍 Localização Fixada";
-                        document.getElementById('gps-lock').style.display = 'none';
-                    },
-                    (err) => {
-                        document.getElementById('gps-lock').style.display = 'flex';
-                    },
-                    { enableHighAccuracy: true }
-                );
-            }
-        }
-
-        function tentarIniciarLeitor() {
-            document.getElementById('msg').innerText = "Iniciando câmera...";
-
-            scanner = new Html5QrcodeScanner("reader", {
-                fps: 15,
-                qrbox: { width: 250, height: 250 },
-                aspectRatio: 1.0
-            });
-
-            scanner.render(onScanSuccess, onScanFailure);
-
-            // Se em 4 segundos o vídeo não aparecer, mostra o botão manual
-            setTimeout(() => {
-                if (!document.querySelector('#reader video')) {
-                    document.getElementById('btn-camera-trigger').style.display = 'block';
-                    document.getElementById('msg').innerText = "Clique no botão para ativar a câmera";
-                }
-            }, 4000);
-        }
-
-        function forçarCamera() {
-            location.reload(); // Recarregar é a forma mais segura de pedir permissão novamente
-        }
-
-        async function onScanSuccess(idFuncionario) {
-            // Previne múltiplas leituras rápidas do mesmo código
+        async function onScan(idFunc) {
             scanner.pause();
-
             const batida = {
                 id_cliente: config.id,
-                id_funcionario: idFuncionario,
+                id_funcionario: idFunc,
                 timestamp_local: new Date().toISOString(),
-                geo: localizacaoAtual
+                geo: geo
             };
 
-            await enviarPonto(batida);
-
-            setTimeout(() => scanner.resume(), 3000); // Aguarda 3s para próxima leitura
-        }
-
-        function onScanFailure(error) { /* Erros de leitura ignorados para fluidez */ }
-
-        async function enviarPonto(batida) {
             try {
                 const res = await fetch(`${config.api}/ponto/registrar`, {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify(batida)
                 });
-
-                if (res.ok) {
-                    alert("✅ PONTO REGISTRADO!");
-                } else {
-                    throw new Error();
-                }
+                if(res.ok) alert("Ponto Registrado!");
             } catch(e) {
-                salvarOffline(batida);
+                let fila = JSON.parse(localStorage.getItem("fila") || "[]");
+                fila.push(batida);
+                localStorage.setItem("fila", JSON.stringify(fila));
+                alert("Offline: Guardado no dispositivo");
             }
-        }
-
-        function salvarOffline(batida) {
-            let fila = JSON.parse(localStorage.getItem("fila") || "[]");
-            fila.push({...batida, offline: true});
-            localStorage.setItem("fila", JSON.stringify(fila));
-            document.getElementById('status-offline').style.display = 'block';
-            alert("☁️ Registrado Offline. Sincronização automática ativa.");
-        }
-
-        async function sincronizar() {
-            if (!navigator.onLine || !config) return;
-            let fila = JSON.parse(localStorage.getItem("fila") || "[]");
-            if (fila.length === 0) return;
-
-            for (let i = fila.length - 1; i >= 0; i--) {
-                try {
-                    const res = await fetch(`${config.api}/ponto/registrar`, {
-                        method: 'POST',
-                        headers: {'Content-Type': 'application/json'},
-                        body: JSON.stringify(fila[i])
-                    });
-                    if (res.ok) fila.splice(i, 1);
-                } catch(e) { break; }
-            }
-            localStorage.setItem("fila", JSON.stringify(fila));
-            if (fila.length === 0) document.getElementById('status-offline').style.display = 'none';
+            setTimeout(() => scanner.resume(), 3000);
         }
 
         function modoConfig() {
-            document.getElementById('unidade-nome').innerText = "Configuração";
-            document.getElementById('msg').innerText = "Escaneie o QR de Ativação do Admin";
-
+            document.getElementById('unidade').innerText = "Ativação";
             scanner = new Html5QrcodeScanner("reader", { fps: 10, qrbox: 250 });
-            scanner.render((txt) => {
-                try {
-                    const configStr = atob(txt);
-                    localStorage.setItem(STORAGE_KEY, configStr);
-                    alert("Unidade Configurada!");
-                    location.reload();
-                } catch(e) { alert("Código de ativação inválido!"); }
+            scanner.render(txt => {
+                localStorage.setItem(KEY, atob(txt));
+                location.reload();
             });
         }
 
-        function resetConfig() {
-            if(confirm("Limpar configurações desta unidade?")) {
-                localStorage.removeItem(STORAGE_KEY);
-                location.reload();
+        async function sincronizar() {
+            let fila = JSON.parse(localStorage.getItem("fila") || "[]");
+            if(fila.length === 0) return;
+            for(let i=fila.length-1; i>=0; i--) {
+                const res = await fetch(`${config.api}/ponto/registrar`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(fila[i])
+                });
+                if(res.ok) fila.splice(i, 1);
             }
+            localStorage.setItem("fila", JSON.stringify(fila));
         }
 
         iniciar();
