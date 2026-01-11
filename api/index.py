@@ -22,11 +22,7 @@ if not firebase_admin._apps:
 db = firestore.client()
 
 
-# --- HELPER BASE64 ---
-def btoa(s): return base64.b64encode(s.encode()).decode()
-
-
-# --- 1. ROTAS DE GESTÃO (index.html) ---
+# --- 1. ROTAS DE GESTÃO (Painel Admin) ---
 
 @app.route('/api/clientes', methods=['GET', 'POST'])
 def gerenciar_clientes():
@@ -42,7 +38,6 @@ def gerenciar_clientes():
         doc_ref = db.collection('clientes').add(nova_empresa)
         return jsonify({"id": doc_ref[1].id, "mensagem": "Sucesso"}), 201
 
-    # GET: Listar todas
     docs = db.collection('clientes').stream()
     return jsonify([{**d.to_dict(), "id": d.id} for d in docs]), 200
 
@@ -54,13 +49,12 @@ def acoes_cliente(id):
         doc_ref.delete()
         return jsonify({"status": "removido"}), 200
 
-    # PUT: Atualizar status ou dados
     dados = request.json
     doc_ref.update(dados)
     return jsonify({"status": "atualizado"}), 200
 
 
-# --- 2. ROTAS DO TABLET (tablet.html) ---
+# --- 2. ROTAS DO TABLET (Coletor de Ponto) ---
 
 @app.route('/api/check-status/<id>', methods=['GET'])
 def check_status(id):
@@ -74,35 +68,41 @@ def check_status(id):
 def registrar_ponto():
     try:
         dados = request.json
-        id_farmacia = dados.get('id_cliente')  # Ajustado para bater com tablet.html
+        id_farmacia = dados.get('id_cliente')
 
         ponto = {
-            "funcionario_id": dados.get('id_funcionario'),
+            "funcionario_id": str(dados.get('id_funcionario')),
             "data_hora_servidor": datetime.now(),
-            "timestamp_local": dados.get('timestamp_local'),  # Enviado pelo tablet
-            "geo": dados.get('geo', None),
+            "timestamp_local": dados.get('timestamp_local'),
+            "geo": dados.get('geo'),
             "status": "OK"
         }
 
-        # Gravação na sub-coleção privada
         db.collection('clientes').document(id_farmacia).collection('registros_ponto').add(ponto)
-        return jsonify({"status": "Ponto registrado"}), 201
+        return jsonify({"status": "Ponto registrado com sucesso"}), 201
     except Exception as e:
         return jsonify({"erro": str(e)}), 400
 
 
-# --- 3. RELATÓRIO AFD (PORTARIA 671) ---
+# --- 3. RELATÓRIO AFD (Garantia de Manipulação de Registos) ---
 @app.route('/api/clientes/<id_farmacia>/afd', methods=['GET'])
 def gerar_dados_afd(id_farmacia):
     docs = db.collection('clientes').document(id_farmacia).collection('registros_ponto').order_by(
         "data_hora_servidor").stream()
+
     registros = []
     for d in docs:
         data = d.to_dict()
         dt = data['data_hora_servidor']
-        linha = f"0000000013{dt.strftime('%d%m%Y%H%M')}{data['funcionario_id'].zfill(12)}"
+        # Formato padrão simplificado: ID Funcionario (12 digitos) + Data/Hora
+        linha = f"0000000013{dt.strftime('%d%m%Y%H%M')}{str(data['funcionario_id']).zfill(12)}"
         registros.append(linha)
-    return jsonify({"arquivo_afd": "\n".join(registros)}), 200
+
+    conteudo = "\n".join(registros)
+    return conteudo, 200, {
+        'Content-Type': 'text/plain',
+        'Content-Disposition': f'attachment; filename=AFD_{id_farmacia}.txt'
+    }
 
 
 if __name__ == '__main__':
