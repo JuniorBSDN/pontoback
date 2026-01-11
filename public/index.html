@@ -2,111 +2,103 @@
 <html lang="pt-br">
 <head>
     <meta charset="UTF-8">
-    <title>PontoSaaS - Painel Admin</title>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <title>Painel Admin - PontoSaaS</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
-        /* Estilos omitidos para brevidade, mantenha os do seu ficheiro original */
-        :root { --primary: #4f46e5; --bg: #f8fafc; --sidebar: #0f172a; }
-        body { font-family: 'Inter', sans-serif; background: var(--bg); display: flex; min-height: 100vh; margin: 0; }
-        .sidebar { width: 260px; background: var(--sidebar); color: white; padding: 1.5rem; }
-        .main-content { flex-grow: 1; padding: 2rem; }
-        .card-container { background: white; border-radius: 12px; border: 1px solid #e2e8f0; overflow: hidden; }
-        table { width: 100%; border-collapse: collapse; }
-        th, td { padding: 16px; border-bottom: 1px solid #e2e8f0; text-align: left; }
-        .status-pill { padding: 4px 12px; border-radius: 20px; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; }
-        .status-active { background: #dcfce7; color: #166534; }
-        .status-blocked { background: #fee2e2; color: #991b1b; }
-        .modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); align-items: center; justify-content: center; z-index: 1000; }
-        .modal-content { background: white; padding: 2rem; border-radius: 16px; width: 450px; }
+        :root { --primary: #4f46e5; --bg: #f8fafc; --text: #1e293b; }
+        body { font-family: sans-serif; background: var(--bg); color: var(--text); margin: 0; display: flex; }
+        .sidebar { width: 250px; background: #0f172a; color: white; height: 100vh; padding: 20px; }
+        .content { flex: 1; padding: 40px; }
+        .card { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { text-align: left; padding: 12px; border-bottom: 1px solid #e2e8f0; }
+        .btn { padding: 8px 16px; border-radius: 6px; cursor: pointer; border: none; font-weight: bold; }
+        .btn-add { background: var(--primary); color: white; }
+        .modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); align-items: center; justify-content: center; }
+        .modal-content { background: white; padding: 30px; border-radius: 15px; width: 400px; }
     </style>
 </head>
 <body>
-
-<aside class="sidebar">
-    <h2>Ponto<strong>SaaS</strong></h2>
-    <nav>
-        <div class="nav-item active"><i class="fas fa-building"></i> Empresas</div>
-    </nav>
-</aside>
-
-<main class="main-content">
-    <header style="display:flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
-        <h1>Gestão de Empresas</h1>
-        <button onclick="openModal('modalEmpresa')" style="background:var(--primary); color:white; border:none; padding:12px 24px; border-radius:8px; cursor:pointer;">+ Nova Empresa</button>
-    </header>
-
-    <div class="card-container">
-        <table>
-            <thead>
-                <tr><th>Empresa / CNPJ</th><th>Plano</th><th>Status</th><th>Ações</th></tr>
-            </thead>
-            <tbody id="lista-clientes"></tbody>
-        </table>
+    <div class="sidebar"><h2>PontoSaaS</h2></div>
+    <div class="content">
+        <div style="display:flex; justify-content: space-between;">
+            <h1>Empresas Clientes</h1>
+            <button class="btn btn-add" onclick="document.getElementById('mEmpresa').style.display='flex'">+ Nova Empresa</button>
+        </div>
+        <div class="card">
+            <table>
+                <thead><tr><th>Empresa</th><th>Status</th><th>Ações</th></tr></thead>
+                <tbody id="lista"></tbody>
+            </table>
+        </div>
     </div>
-</main>
 
-<div id="modalQRMestre" class="modal">
-    <div class="modal-content" style="text-align: center;">
-        <h2>Configuração do Tablet</h2>
-        <div id="qrcode-container" style="margin: 20px auto;"></div>
-        <button onclick="closeModal('modalQRMestre')">Fechar</button>
+    <div id="mEmpresa" class="modal">
+        <div class="modal-content">
+            <h3>Novo Cadastro</h3>
+            <input type="text" id="n_nome" placeholder="Nome Fantasia" style="width:100%; margin-bottom:10px; padding:8px;">
+            <input type="text" id="n_cnpj" placeholder="CNPJ" style="width:100%; margin-bottom:10px; padding:8px;">
+            <button class="btn btn-add" onclick="salvar()">Salvar</button>
+            <button onclick="document.getElementById('mEmpresa').style.display='none'">Cancelar</button>
+        </div>
     </div>
-</div>
 
-<script>
-    const API_URL = "https://pontoback-tau.vercel.app/api";
+    <div id="mQR" class="modal">
+        <div class="modal-content" style="text-align:center;">
+            <h3>Ativação do Tablet</h3>
+            <div id="qrcode" style="margin:20px auto; display:inline-block;"></div>
+            <br><button onclick="document.getElementById('mQR').style.display='none'">Fechar</button>
+        </div>
+    </div>
 
-    document.addEventListener('DOMContentLoaded', carregarEmpresas);
+    <script>
+        const API = "https://pontoback-tau.vercel.app/api";
 
-    async function carregarEmpresas() {
-        const res = await fetch(`${API_URL}/clientes`);
-        const empresas = await res.json();
-        const tabela = document.getElementById('lista-clientes');
-        tabela.innerHTML = '';
-        empresas.forEach(emp => {
-            tabela.innerHTML += `
+        async function carregar() {
+            const res = await fetch(`${API}/clientes`);
+            const dados = await res.json();
+            const corpo = document.getElementById('lista');
+            corpo.innerHTML = dados.map(e => `
                 <tr>
-                    <td><strong>${emp.nome_fantasia}</strong><br><small>${emp.cnpj}</small></td>
-                    <td>${emp.plano}</td>
-                    <td><span class="status-pill ${emp.status === 'ativo' ? 'status-active' : 'status-blocked'}">${emp.status}</span></td>
+                    <td>${e.nome_fantasia}<br><small>${e.cnpj}</small></td>
+                    <td>${e.status}</td>
                     <td>
-                        <button onclick="gerarQRMestre('${emp.id}', '${emp.nome_fantasia}')"><i class="fas fa-qrcode"></i></button>
-                        <button onclick="alternarStatus('${emp.id}', '${emp.status}')"><i class="fas fa-ban"></i></button>
-                        <button onclick="window.open('${API_URL}/clientes/${emp.id}/afd')"><i class="fas fa-file-download"></i></button>
-                        <button onclick="excluirEmpresa('${emp.id}')" style="color:red"><i class="fas fa-trash"></i></button>
+                        <button onclick="gerarQR('${e.id}', '${e.nome_fantasia}')"><i class="fas fa-qrcode"></i></button>
+                        <button onclick="alterarStatus('${e.id}', '${e.status}')"><i class="fas fa-ban"></i></button>
+                        <button onclick="window.open('${API}/clientes/${e.id}/afd')"><i class="fas fa-file-download"></i></button>
                     </td>
-                </tr>`;
-        });
-    }
-
-    async function alternarStatus(id, status) {
-        const novo = status === 'ativo' ? 'inadimplente' : 'ativo';
-        await fetch(`${API_URL}/clientes/${id}`, {
-            method: 'PUT',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({status: novo})
-        });
-        carregarEmpresas();
-    }
-
-    async function excluirEmpresa(id) {
-        if(confirm("Excluir empresa e todos os registos?")) {
-            await fetch(`${API_URL}/clientes/${id}`, { method: 'DELETE' });
-            carregarEmpresas();
+                </tr>
+            `).join('');
         }
-    }
 
-    function gerarQRMestre(id, nome) {
-        const container = document.getElementById('qrcode-container');
-        container.innerHTML = "";
-        const payload = btoa(JSON.stringify({ id, nome, api: API_URL }));
-        new QRCode(container, { text: payload, width: 200, height: 200 });
-        document.getElementById('modalQRMestre').style.display = 'flex';
-    }
+        async function salvar() {
+            await fetch(`${API}/clientes`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({nome: document.getElementById('n_nome').value, cnpj: document.getElementById('n_cnpj').value})
+            });
+            location.reload();
+        }
 
-    function openModal(id) { document.getElementById(id).style.display = 'flex'; }
-    function closeModal(id) { document.getElementById(id).style.display = 'none'; }
-</script>
+        async function alterarStatus(id, atual) {
+            const novo = atual === 'ativo' ? 'inadimplente' : 'ativo';
+            await fetch(`${API}/clientes/${id}`, {
+                method: 'PUT',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({status: novo})
+            });
+            carregar();
+        }
+
+        function gerarQR(id, nome) {
+            document.getElementById('qrcode').innerHTML = "";
+            const config = btoa(JSON.stringify({id, nome, api: API}));
+            new QRCode(document.getElementById('qrcode'), { text: config, width: 200, height: 200 });
+            document.getElementById('mQR').style.display = 'flex';
+        }
+
+        carregar();
+    </script>
 </body>
 </html>
