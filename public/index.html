@@ -3,184 +3,171 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PontoSaaS - Gestão de Conformidade</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <title>PontoSaaS | Painel Administrativo</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 
     <style>
         :root {
-            --primary: #4f46e5; --success: #22c55e; --danger: #ef4444; --warning: #f59e0b;
-            --bg: #f8fafc; --sidebar: #0f172a; --card: #ffffff; --border: #e2e8f0;
+            --primary: #4f46e5; --sidebar-bg: #0f172a; --bg: #f8fafc;
+            --text: #1e293b; --border: #e2e8f0; --warning: #f59e0b; --danger: #ef4444;
         }
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: 'Inter', sans-serif; background: var(--bg); display: flex; color: #1e293b; }
-
-        /* Layout Sidebar */
-        .sidebar { width: 260px; background: var(--sidebar); color: white; height: 100vh; padding: 2rem; position: fixed; }
-        .main-content { margin-left: 260px; flex: 1; padding: 2rem; }
-
-        /* Cards e Tabelas */
-        .card { background: var(--card); border-radius: 12px; border: 1px solid var(--border); overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
-        table { width: 100%; border-collapse: collapse; }
-        th { background: #f1f5f9; padding: 1rem; text-align: left; font-size: 0.85rem; text-transform: uppercase; color: #64748b; }
-        td { padding: 1rem; border-bottom: 1px solid var(--border); vertical-align: middle; }
-
-        /* Modais Modernos */
-        .modal { display: none; position: fixed; inset: 0; background: rgba(15, 23, 42, 0.7); align-items: center; justify-content: center; z-index: 1000; backdrop-filter: blur(4px); }
-        .modal-content { background: white; width: 500px; padding: 2rem; border-radius: 16px; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.2); }
-
-        .form-group { margin-bottom: 1.2rem; }
-        label { display: block; margin-bottom: 0.5rem; font-weight: 600; font-size: 0.9rem; }
-        input, select { width: 100%; padding: 0.75rem; border: 1px solid var(--border); border-radius: 8px; font-size: 1rem; }
-
-        .status-pill { padding: 4px 12px; border-radius: 99px; font-size: 0.75rem; font-weight: 700; }
-        .active { background: #dcfce7; color: #166534; }
-        .blocked { background: #fee2e2; color: #991b1b; }
-
-        .btn { padding: 0.75rem 1.5rem; border-radius: 8px; border: none; font-weight: 600; cursor: pointer; transition: 0.2s; }
-        .btn-primary { background: var(--primary); color: white; }
-        .btn-secondary { background: #e2e8f0; color: #475569; }
+        body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); }
+        .wrapper { display: flex; flex-direction: column; min-height: 100vh; }
+        .sidebar { background: var(--sidebar-bg); color: white; padding: 1.5rem; width: 100%; }
+        .main-content { flex: 1; padding: 1.5rem; }
+        @media (min-width: 1024px) {
+            .wrapper { flex-direction: row; }
+            .sidebar { width: 260px; height: 100vh; position: fixed; }
+            .main-content { margin-left: 260px; padding: 3rem; }
+        }
+        header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2.5rem; flex-wrap: wrap; gap: 1rem; }
+        .card-tabela { background: white; border-radius: 12px; border: 1px solid var(--border); overflow-x: auto; }
+        table { width: 100%; border-collapse: collapse; min-width: 900px; }
+        th { background: #f1f5f9; padding: 1rem; text-align: left; font-size: 0.75rem; color: #64748b; text-transform: uppercase; }
+        td { padding: 1.25rem 1rem; border-bottom: 1px solid var(--border); font-size: 0.9rem; }
+        .btn-icon { background: none; border: 1px solid var(--border); padding: 8px; border-radius: 6px; cursor: pointer; margin-right: 4px; }
+        .modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); backdrop-filter: blur(4px); z-index: 2000; align-items: center; justify-content: center; padding: 1rem; }
+        .modal-content { background: white; width: 100%; max-width: 650px; padding: 2rem; border-radius: 16px; max-height: 90vh; overflow-y: auto; }
+        .form-grid { display: grid; grid-template-columns: 1fr; gap: 1rem; }
+        @media (min-width: 600px) { .form-grid { grid-template-columns: 1fr 1fr; } .full { grid-column: span 2; } }
+        label { display: block; font-size: 0.85rem; font-weight: 600; margin-bottom: 5px; color: #475569; }
+        input { width: 100%; padding: 0.75rem; border: 1px solid var(--border); border-radius: 8px; }
+        .btn-save { background: var(--primary); color: white; border: none; padding: 1rem; border-radius: 8px; font-weight: 600; cursor: pointer; width: 100%; margin-top: 1.5rem; }
     </style>
 </head>
 <body>
 
-<nav class="sidebar">
-    <h2 style="color: var(--primary); margin-bottom: 2rem;">PontoSaaS</h2>
-    <p style="font-size: 0.8rem; color: #94a3b8;">SISTEMA DE AUDITORIA</p>
-</nav>
-
-<main class="main-content">
-    <header style="display: flex; justify-content: space-between; margin-bottom: 2rem; align-items: center;">
-        <div>
-            <h1>Gestão de Empresas</h1>
-            <p style="color: #64748b;">Conformidade com a Portaria 671/MTP</p>
+<div class="wrapper">
+    <nav class="sidebar"><h2 style="color: #818cf8;">PontoSaaS</h2></nav>
+    <main class="main-content">
+        <header>
+            <div><h1>Unidades e Clientes</h1><p style="color: #64748b;">Administre as filiais e senhas</p></div>
+            <button onclick="abrirModal()" style="background:var(--primary); color:white; border:none; padding:12px 24px; border-radius:8px; cursor:pointer; font-weight:600;">
+                <i class="fas fa-plus"></i> Novo Cliente
+            </button>
+        </header>
+        <div class="card-tabela">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Empresa / Endereço</th>
+                        <th>CNPJ / Contato</th>
+                        <th>Senha Tablet</th>
+                        <th>Ações</th>
+                    </tr>
+                </thead>
+                <tbody id="lista-clientes"></tbody>
+            </table>
         </div>
-        <button class="btn btn-primary" onclick="openModal('modalEmpresa')">
-            <i class="fas fa-plus"></i> Nova Empresa
-        </button>
-    </header>
-
-    <div class="card">
-        <table>
-            <thead>
-                <tr>
-                    <th>Empresa / Responsável</th>
-                    <th>CNPJ / Identificação</th>
-                    <th>Status Legal</th>
-                    <th>Ações de Registro</th>
-                </tr>
-            </thead>
-            <tbody id="lista-clientes"></tbody>
-        </table>
-    </div>
-</main>
+    </main>
+</div>
 
 <div id="modalEmpresa" class="modal">
     <div class="modal-content">
-        <h2 style="margin-bottom: 1.5rem;">Registro de Nova Unidade</h2>
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1.5rem;">
+            <h2 id="modal-titulo">Configurar Unidade</h2>
+            <button onclick="closeModal()" style="border:none; background:none; font-size:1.5rem; cursor:pointer;">&times;</button>
+        </div>
         <form id="form-empresa">
-            <div class="form-group">
-                <label>Razão Social / Nome Fantasia</label>
-                <input type="text" id="nome" required placeholder="Ex: Farmácia Central Ltda">
+            <input type="hidden" id="edit-id">
+            <div class="form-grid">
+                <div class="form-group full"><label>Razão Social / Fantasia</label><input type="text" id="nome" required></div>
+                <div class="form-group"><label>CNPJ</label><input type="text" id="cnpj" required></div>
+                <div class="form-group"><label>Responsável</label><input type="text" id="responsavel" required></div>
+                <div class="form-group"><label>E-mail</label><input type="email" id="email" required></div>
+                <div class="form-group"><label>Telefone</label><input type="text" id="telefone" required></div>
+                <div class="form-group full"><label style="color:var(--primary)">Senha de Acesso ao Tablet</label><input type="text" id="senha_acesso" required></div>
+                <div class="form-group full"><label>Endereço Completo</label><input type="text" id="endereco" required></div>
             </div>
-            <div class="form-group">
-                <label>CNPJ (Somente Números)</label>
-                <input type="text" id="cnpj" required placeholder="00.000.000/0000-00">
-            </div>
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
-                <div class="form-group">
-                    <label>Responsável Legal</label>
-                    <input type="text" id="responsavel" required placeholder="Nome do Gestor">
-                </div>
-                <div class="form-group">
-                    <label>Plano de Serviço</label>
-                    <select id="plano">
-                        <option value="basico">Básico (Até 10 func.)</option>
-                        <option value="pro">Pro (Ilimitado)</option>
-                    </select>
-                </div>
-            </div>
-            <div style="display: flex; gap: 1rem; margin-top: 1rem;">
-                <button type="submit" class="btn btn-primary" style="flex: 2;">Registrar e Ativar</button>
-                <button type="button" class="btn btn-secondary" style="flex: 1;" onclick="closeModal('modalEmpresa')">Cancelar</button>
-            </div>
+            <button type="submit" class="btn-save">Salvar Registro</button>
         </form>
     </div>
 </div>
 
 <div id="modalQR" class="modal">
-    <div class="modal-content" style="text-align: center;">
-        <h2 id="qr-nome-empresa"></h2>
-        <p style="color: #64748b; margin-bottom: 1.5rem;">Aponte o tablet para este código para vincular a unidade</p>
-        <div id="qrcode-container" style="display: inline-block; padding: 1rem; border: 2px solid var(--primary); border-radius: 12px;"></div>
-        <div style="margin-top: 2rem;">
-            <button class="btn btn-secondary" onclick="closeModal('modalQR')">Fechar</button>
-        </div>
+    <div class="modal-content" style="text-align:center">
+        <h2>Ativar Tablet</h2>
+        <div id="qrcode-container" style="display:inline-block; padding:20px; background:white; margin:20px 0;"></div>
+        <button onclick="document.getElementById('modalQR').style.display='none'" class="btn-save">Fechar</button>
     </div>
 </div>
 
 <script>
     const API_URL = "https://pontoback-tau.vercel.app/api";
+    let clientesCache = [];
 
     async function carregarEmpresas() {
-        const res = await fetch(`${API_URL}/clientes`);
-        const empresas = await res.json();
-        const tabela = document.getElementById('lista-clientes');
-        tabela.innerHTML = empresas.map(emp => `
-            <tr>
-                <td>
-                    <strong>${emp.nome_fantasia}</strong><br>
-                    <small style="color:#64748b">Gestor: ${emp.responsavel || 'Não definido'}</small>
-                </td>
-                <td><code>${emp.cnpj}</code></td>
-                <td>
-                    <span class="status-pill ${emp.status === 'ativo' ? 'active' : 'blocked'}">
-                        ${emp.status.toUpperCase()}
-                    </span>
-                </td>
-                <td>
-                    <button class="btn" style="color:var(--primary)" onclick="abrirQR('${emp.id}', '${emp.nome_fantasia}')" title="Ativar Coletor"><i class="fas fa-tablet-alt"></i></button>
-                    <button class="btn" style="color:var(--warning)" onclick="alternarStatus('${emp.id}', '${emp.status}')" title="Bloquear"><i class="fas fa-ban"></i></button>
-                    <button class="btn" style="color:var(--success)" onclick="baixarAFD('${emp.id}')" title="Exportar AFD"><i class="fas fa-file-csv"></i></button>
-                    <button class="btn" style="color:var(--danger)" onclick="excluirEmpresa('${emp.id}')" title="Excluir"><i class="fas fa-trash"></i></button>
-                </td>
-            </tr>
-        `).join('');
+        try {
+            const res = await fetch(`${API_URL}/clientes`);
+            clientesCache = await res.json();
+            const tabela = document.getElementById('lista-clientes');
+            tabela.innerHTML = clientesCache.map(emp => `
+                <tr>
+                    <td><strong>${emp.nome_fantasia || 'N/A'}</strong><br><small>${emp.endereco || ''}</small></td>
+                    <td><code>${emp.cnpj}</code><br><small>${emp.email || ''}</small></td>
+                    <td><span style="background:#e0e7ff; padding:5px 10px; border-radius:6px; font-weight:bold; color:#4f46e5">${emp.senha_acesso || 'NÃO DEFINIDA'}</span></td>
+                    <td>
+                        <button class="btn-icon" onclick="gerarQRAtivacao('${emp.id}')"><i class="fas fa-qrcode" style="color:var(--primary)"></i></button>
+                        <button class="btn-icon" onclick="editarEmpresa('${emp.id}')"><i class="fas fa-edit" style="color:var(--warning)"></i></button>
+                        <button class="btn-icon" onclick="excluirEmpresa('${emp.id}')"><i class="fas fa-trash" style="color:var(--danger)"></i></button>
+                    </td>
+                </tr>
+            `).join('');
+        } catch (e) { console.error(e); }
+    }
+
+    function abrirModal() { document.getElementById('form-empresa').reset(); document.getElementById('edit-id').value = ""; document.getElementById('modalEmpresa').style.display = 'flex'; }
+    function closeModal() { document.getElementById('modalEmpresa').style.display = 'none'; }
+
+    function gerarQRAtivacao(id) {
+        const emp = clientesCache.find(c => c.id === id);
+        const qrContent = btoa(JSON.stringify({ id: emp.id, nome: emp.nome_fantasia, api: API_URL }));
+        const container = document.getElementById('qrcode-container');
+        container.innerHTML = "";
+        new QRCode(container, { text: qrContent, width: 256, height: 256 });
+        document.getElementById('modalQR').style.display = 'flex';
+    }
+
+    function editarEmpresa(id) {
+        const emp = clientesCache.find(c => c.id === id);
+        document.getElementById('edit-id').value = emp.id;
+        document.getElementById('nome').value = emp.nome_fantasia;
+        document.getElementById('cnpj').value = emp.cnpj;
+        document.getElementById('responsavel').value = emp.responsavel;
+        document.getElementById('email').value = emp.email;
+        document.getElementById('telefone').value = emp.telefone;
+        document.getElementById('senha_acesso').value = emp.senha_acesso || "";
+        document.getElementById('endereco').value = emp.endereco;
+        document.getElementById('modalEmpresa').style.display = 'flex';
     }
 
     document.getElementById('form-empresa').onsubmit = async (e) => {
         e.preventDefault();
+        const id = document.getElementById('edit-id').value;
         const dados = {
             nome: document.getElementById('nome').value,
             cnpj: document.getElementById('cnpj').value,
             responsavel: document.getElementById('responsavel').value,
-            plano: document.getElementById('plano').value
+            email: document.getElementById('email').value,
+            telefone: document.getElementById('telefone').value,
+            senha_acesso: document.getElementById('senha_acesso').value, // Sincronizado com API
+            endereco: document.getElementById('endereco').value
         };
-
-        await fetch(`${API_URL}/clientes`, {
-            method: 'POST',
+        await fetch(id ? `${API_URL}/clientes/${id}` : `${API_URL}/clientes`, {
+            method: id ? 'PUT' : 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify(dados)
         });
-        closeModal('modalEmpresa');
+        closeModal();
         carregarEmpresas();
     };
 
-    function abrirQR(id, nome) {
-        document.getElementById('qr-nome-empresa').innerText = nome;
-        const container = document.getElementById('qrcode-container');
-        container.innerHTML = "";
-        const payload = btoa(JSON.stringify({ id, nome, api: API_URL }));
-        new QRCode(container, { text: payload, width: 200, height: 200 });
-        openModal('modalQR');
+    async function excluirEmpresa(id) {
+        if(confirm("Excluir unidade?")) { await fetch(`${API_URL}/clientes/${id}`, { method: 'DELETE' }); carregarEmpresas(); }
     }
-
-    function baixarAFD(id) { window.open(`${API_URL}/clientes/${id}/afd`, '_blank'); }
-    function openModal(id) { document.getElementById(id).style.display = 'flex'; }
-    function closeModal(id) { document.getElementById(id).style.display = 'none'; }
-
-    // Inicia a aplicação
     carregarEmpresas();
 </script>
 </body>
