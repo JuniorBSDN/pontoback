@@ -1,117 +1,159 @@
 import os
 import json
 from datetime import datetime
-from flask import Flask, request, jsonify, make_response
+from flask import Flask, request, jsonify
 from flask_cors import CORS
 import firebase_admin
 from firebase_admin import credentials, firestore
 
 app = Flask(__name__)
-# Configuração de CORS para permitir que o seu Front-end acesse a API na Vercel
+# Configuração de CORS para permitir acesso do Tablet e do Painel Admin
 CORS(app, resources={r"/api/*": {"origins": "*"}})
 
-# --- INICIALIZAÇÃO FIREBASE ---
+# Inicialização do Firebase
 if not firebase_admin._apps:
     cred_json = os.environ.get('FIREBASE_CONFIG')
     if cred_json:
         cred = credentials.Certificate(json.loads(cred_json))
     else:
+        # Certifique-se de que este arquivo existe no seu servidor/diretório
         cred = credentials.Certificate("serviceAccountKey.json")
     firebase_admin.initialize_app(cred)
 
 db = firestore.client()
 
-# --- 1. OPERAÇÕES DE EMPRESA (PAINEL ADMIN) ---
+
+# --- ROTAS DE CLIENTES (PAINEL ADMIN) ---
 
 @app.route('/api/clientes', methods=['GET', 'POST'])
 def gerenciar_clientes():
     if request.method == 'POST':
         dados = request.json
+        senha_final = dados.get('senha') or dados.get('senha_acesso')
+
         nova_empresa = {
             "nome_fantasia": dados.get('nome'),
             "cnpj": dados.get('cnpj'),
-            "responsavel": dados.get('responsavel'), # Abstração Legal
-            "plano": dados.get('plano', 'basico'),
-            "status": "ativo", # Padrão ao criar
+            "responsavel": dados.get('responsavel'),
+            "email": dados.get('email'),
+            "telefone": dados.get('telefone'),
+            "endereco": dados.get('endereco'),
+            "senha_acesso": senha_final,
+            "status": "ativo",
             "data_cadastro": datetime.now()
         }
-        doc_ref = db.collection('clientes').add(nova_empresa)
-        return jsonify({"id": doc_ref[1].id, "status": "Empresa registrada"}), 201
+        db.collection('clientes').add(nova_empresa)
+        return jsonify({"status": "sucesso"}), 201
 
-    # Retorna todas as empresas cadastradas
-    docs = db.collection('clientes').order_by("nome_fantasia").stream()
-    return jsonify([{**d.to_dict(), "id": d.id} for d in docs]), 200
+    clientes = []
+    for doc in db.collection('clientes').stream():
+        item = doc.to_dict()
+        item['id'] = doc.id
+        clientes.append(item)
+    return jsonify(clientes)
+
 
 @app.route('/api/clientes/<id>', methods=['PUT', 'DELETE'])
-def acoes_cliente(id):
-    doc_ref = db.collection('clientes').document(id)
-    
-    if request.method == 'DELETE':
-        # Exclui a empresa (Cuidado: Isso é permanente no Firebase)
-        doc_ref.delete()
-        return jsonify({"status": "Registro removido"}), 200
-    
-    # Atualiza Status (Bloqueio/Desbloqueio) ou dados cadastrais
-    dados = request.json
-    doc_ref.update(dados)
-    return jsonify({"status": "Registro atualizado"}), 200
+def detalhe_cliente(id):
+    ref = db.collection('clientes').document(id)
+    if request.method == 'PUT':
+        dados = request.json
+        senha_final = dados.get('senha') or dados.get('senha_acesso')
+        ref.update({
+            "nome_fantasia": dados.get('nome'),
+            "cnpj": dados.get('cnpj'),
+            "responsavel": dados.get('responsavel'),
+            "email": dados.get('email'),
+            "telefone": dados.get('telefone'),
+            "endereco": dados.get('endereco'),
+            "senha_acesso": senha_final
+        })
+        return jsonify({"status": "atualizado"})
 
-# --- 2. OPERAÇÕES DE PONTO (TABLET) ---
+    if request.method == 'DELETE':
+        ref.delete()
+        return jsonify({"status": "removido"})
+
+
+# --- ROTAS DO TABLET (OPERAÇÃO E ATIVAÇÃO) ---
+
+@app.route('/api/clientes/ativar-dispositivo', methods=['POST'])
+def ativar_dispositivo():
+    """Vincula um tablet específico a uma empresa via Machine ID"""
+    dados = request.json
+    cliente_id = dados.get('cliente_id')
+    machine_id = dados.get('machine_id')
+
+    if not cliente_id or not machine_id:
+        return jsonify({"erro": "Dados incompletos"}), 400
+
+    # Salva o dispositivo na sub-coleção da empresa
+    dispositivo_ref = db.collection('clientes').document(cliente_id).collection('dispositivos').document(machine_id)
+
+    dispositivo_ref.set({
+        "machine_id": machine_id,
+        "modelo": dados.get('modelo'),
+        "data_ativacao": datetime.now(),
+        "ultimo_acesso": datetime.now(),
+        "status": "autorizado"
+    })
+
+    return jsonify({"status": "Dispositivo ativado com sucesso"}), 200
+
 
 @app.route('/api/ponto/registrar', methods=['POST'])
 def registrar_ponto():
-    try:
-        dados = request.json
-        id_cliente = dados.get('id_cliente')
-        
-        # VALIDAÇÃO DE FLUXO: A empresa está ativa?
-        emp_doc = db.collection('clientes').document(id_cliente).get()
-        if not emp_doc.exists:
-            return jsonify({"erro": "Empresa não encontrada"}), 404
-        
-        status_empresa = emp_doc.to_dict().get('status')
-        if status_empresa != 'ativo':
-            return jsonify({"erro": f"Acesso negado: Empresa com status {status_empresa}"}), 403
+    """Recebe a batida de ponto do Tablet (QR Code do funcionário)"""
+    dados = request.json
+    cliente_id = dados.get('id_cliente')
+    machine_id = dados.get('machine_id')
 
-        # REGISTRO DO PONTO
-        ponto = {
-            "funcionario_id": str(dados.get('id_funcionario')),
-            "timestamp_local": dados.get('timestamp_local'), # Enviado pelo tablet
-            "data_hora_servidor": datetime.now(),            # Hora oficial p/ auditoria
-            "geo": dados.get('geo'),                        # Latitude/Longitude
-            "metadados": {
-                "user_agent": request.headers.get('User-Agent'),
-                "ip": request.remote_addr
-            }
-        }
+    # 1. Validação básica de segurança: Verifica se o tablet está autorizado
+    disp_ref = db.collection('clientes').document(cliente_id).collection('dispositivos').document(machine_id).get()
 
-        # Salva na sub-coleção específica (Isolamento de dados)
-        db.collection('clientes').document(id_cliente).collection('registros_ponto').add(ponto)
-        return jsonify({"status": "Ponto validado com sucesso"}), 201
-    except Exception as e:
-        return jsonify({"erro": str(e)}), 400
+    if not disp_ref.exists:
+        return jsonify({"erro": "Dispositivo não autorizado. Reative o tablet."}), 403
 
-# --- 3. OPERAÇÕES DE AUDITORIA (EXPORTAÇÃO AFD) ---
+    # 2. Prepara o registro do ponto
+    ponto = {
+        "id_funcionario": dados.get('id_funcionario'),
+        "timestamp_local": dados.get('timestamp_local'),  # Hora que o tablet registrou
+        "timestamp_servidor": datetime.now(),
+        "geolocalizacao": dados.get('geo'),
+        "machine_id": machine_id,
+        "cliente_id": cliente_id
+    }
 
-@app.route('/api/clientes/<id_cliente>/afd', methods=['GET'])
-def exportar_afd(id_cliente):
-    # Busca registros de ponto da empresa solicitada
-    registros = db.collection('clientes').document(id_cliente).collection('registros_ponto').order_by("data_hora_servidor").stream()
-    
-    # Montagem do arquivo conforme Portaria 671 (Simplificado para este exemplo)
-    linhas_afd = []
-    for reg in registros:
-        d = reg.to_dict()
-        data_ponto = d['data_hora_servidor']
-        # Layout: Sequencial(9) + Tipo(1) + Data(8) + Hora(4) + PIS/ID(12)
-        linha = f"0000000013{data_ponto.strftime('%d%m%Y%H%M')}{str(d['funcionario_id']).zfill(12)}"
-        linhas_afd.append(linha)
-    
-    conteudo = "\n".join(linhas_afd)
-    response = make_response(conteudo)
-    response.headers["Content-Disposition"] = f"attachment; filename=AFD_CLIENTE_{id_cliente}.txt"
-    response.headers["Content-type"] = "text/plain"
-    return response
+    # 3. Salva no banco de dados (Coleção Geral de Pontos)
+    db.collection('registros_ponto').add(ponto)
 
+    # Atualiza último acesso do dispositivo
+    db.collection('clientes').document(cliente_id).collection('dispositivos').document(machine_id).update({
+        "ultimo_acesso": datetime.now()
+    })
+
+    return jsonify({"status": "Ponto registrado"}), 201
+
+
+@app.route('/api/clientes/login-tablet', methods=['POST'])
+def login_tablet():
+    dados = request.json
+    cnpj = dados.get('cnpj')
+    # O tablet envia como 'senha', mas o banco guarda como 'senha_acesso'
+    senha_enviada = dados.get('senha')
+
+    # A query DEVE comparar com o nome exato da coluna no Firestore
+    query = db.collection('clientes').where('cnpj', '==', cnpj).where('senha_acesso', '==', senha_enviada).get()
+
+    if not query:
+        return jsonify({"erro": "CNPJ ou Senha incorretos"}), 401
+
+    empresa = query[0].to_dict()
+    return jsonify({
+        "id": query[0].id,
+        "nome": empresa.get('nome_fantasia')
+    }), 200
 if __name__ == '__main__':
-    app.run(debug=True)
+    # Em produção (Vercel/Heroku), o Flask usa o host 0.0.0.0
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host='0.0.0.0', port=port)
