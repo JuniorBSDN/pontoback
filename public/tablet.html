@@ -2,99 +2,75 @@
 <html lang="pt-br">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Tablet - PontoSaaS</title>
+    <title>Tablet PontoSaaS</title>
     <script src="https://unpkg.com/html5-qrcode"></script>
     <style>
-        body { background: #0f172a; color: white; font-family: sans-serif; text-align: center; margin: 0; display: flex; flex-direction: column; min-height: 100vh; justify-content: center; }
-        #reader { width: 90%; max-width: 500px; margin: 20px auto; border-radius: 12px; border: 2px solid #334155; overflow: hidden; }
-        .btn-cam { background: #4f46e5; color: white; padding: 15px; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; display: none; margin: 10px auto; }
+        body { background: #0f172a; color: white; font-family: sans-serif; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; }
+        .card { background: #1e293b; padding: 30px; border-radius: 12px; width: 350px; text-align: center; }
+        input { width: 100%; padding: 12px; margin: 10px 0; border-radius: 6px; border: 1px solid #334155; background: #0f172a; color: white; box-sizing: border-box; }
+        button { width: 100%; padding: 12px; background: #4f46e5; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; }
+        #reader { width: 100%; margin-top: 20px; border-radius: 12px; overflow: hidden; display: none; }
     </style>
 </head>
 <body>
-    <h1 id="unidade">Iniciando...</h1>
-    <p id="gps-status">📍 Solicitando GPS...</p>
-    
-    <button id="btnManual" class="btn-cam" onclick="location.reload()">📸 Ativar Câmera Manualmente</button>
-    
-    <div id="reader"></div>
-    <p id="msg">Aponte o QR Code do Crachá</p>
+
+    <div id="login-area" class="card">
+        <h2>PontoSaaS</h2>
+        <p>Ativação da Unidade</p>
+        <input type="text" id="cnpj" placeholder="CNPJ da Unidade">
+        <input type="password" id="senha" placeholder="Senha de Acesso">
+        <button onclick="fazerLogin()">ATIVAR TABLET</button>
+        <p id="erro" style="color: #ef4444; display: none;">Dados incorretos!</p>
+    </div>
+
+    <div id="ponto-area" style="display:none; text-align:center;">
+        <h1 id="nome-unidade"></h1>
+        <div id="reader"></div>
+        <p>Aproxime seu QR Code</p>
+        <button onclick="sair()" style="background:#334155; width: auto; padding: 5px 15px;">Sair</button>
+    </div>
 
     <script>
-        const KEY = "config_ponto_saas";
-        let config = JSON.parse(localStorage.getItem(KEY));
-        let scanner, geo = null;
+        const API_URL = "https://pontoback-tau.vercel.app/api";
+        let config = JSON.parse(localStorage.getItem("config_tablet"));
 
-        async function iniciar() {
-            if (!config) return modoConfig();
-            
-            document.getElementById('unidade').innerText = config.nome;
-            
-            // Iniciar GPS
-            navigator.geolocation.watchPosition(p => {
-                geo = {lat: p.coords.latitude, lng: p.coords.longitude};
-                document.getElementById('gps-status').innerText = "📍 GPS Ativo";
-            }, () => { alert("GPS é obrigatório!"); }, {enableHighAccuracy: true});
-
-            // Iniciar Câmera
-            scanner = new Html5QrcodeScanner("reader", { fps: 10, qrbox: 250 });
-            scanner.render(onScan);
-
-            // Backup se a câmera demorar
-            setTimeout(() => { if(!document.querySelector('video')) document.getElementById('btnManual').style.display='block'; }, 4000);
-            
-            // Sincronizador Offline
-            setInterval(sincronizar, 30000);
+        function iniciar() {
+            if (config) { mostrarPonto(); }
         }
 
-        async function onScan(idFunc) {
-            scanner.pause();
-            const batida = {
-                id_cliente: config.id,
-                id_funcionario: idFunc,
-                timestamp_local: new Date().toISOString(),
-                geo: geo
-            };
+        async function fazerLogin() {
+            const cnpj = document.getElementById('cnpj').value;
+            const senha = document.getElementById('senha').value;
 
-            try {
-                const res = await fetch(`${config.api}/ponto/registrar`, {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify(batida)
-                });
-                if(res.ok) alert("Ponto Registrado!");
-            } catch(e) {
-                let fila = JSON.parse(localStorage.getItem("fila") || "[]");
-                fila.push(batida);
-                localStorage.setItem("fila", JSON.stringify(fila));
-                alert("Offline: Guardado no dispositivo");
+            const res = await fetch(`${API_URL}/clientes/login-tablet`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ cnpj, senha })
+            });
+
+            if (res.ok) {
+                const dados = await res.json();
+                config = { id: dados.id, nome: dados.nome };
+                localStorage.setItem("config_tablet", JSON.stringify(config));
+                mostrarPonto();
+            } else {
+                document.getElementById('erro').style.display = 'block';
             }
-            setTimeout(() => scanner.resume(), 3000);
         }
 
-        function modoConfig() {
-            document.getElementById('unidade').innerText = "Ativação";
-            scanner = new Html5QrcodeScanner("reader", { fps: 10, qrbox: 250 });
-            scanner.render(txt => {
-                localStorage.setItem(KEY, atob(txt));
-                location.reload();
+        function mostrarPonto() {
+            document.getElementById('login-area').style.display = 'none';
+            document.getElementById('ponto-area').style.display = 'block';
+            document.getElementById('nome-unidade').innerText = config.nome;
+
+            const scanner = new Html5QrcodeScanner("reader", { fps: 10, qrbox: 250 });
+            scanner.render((id) => {
+                alert("Ponto registrado para o ID: " + id);
+                // Aqui você chama a rota /api/ponto/registrar que já tem no index.py
             });
         }
 
-        async function sincronizar() {
-            let fila = JSON.parse(localStorage.getItem("fila") || "[]");
-            if(fila.length === 0) return;
-            for(let i=fila.length-1; i>=0; i--) {
-                const res = await fetch(`${config.api}/ponto/registrar`, {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify(fila[i])
-                });
-                if(res.ok) fila.splice(i, 1);
-            }
-            localStorage.setItem("fila", JSON.stringify(fila));
-        }
-
+        function sair() { localStorage.removeItem("config_tablet"); location.reload(); }
         iniciar();
     </script>
 </body>
