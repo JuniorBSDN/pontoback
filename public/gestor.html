@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="pt-br">
 <head>
@@ -159,32 +160,54 @@
         } catch (e) { alert("Erro ao conectar com o servidor."); }
     }
 
-    async function carregarFuncionarios() {
-        try {
-            const res = await fetch(`${API_URL}/funcionarios/${config.id}`);
-            funcionariosLocal = await res.json();
-            const corpo = document.getElementById('lista-func');
+   async function carregarFuncionarios() {
+    const corpo = document.getElementById('lista-func');
 
-            if (funcionariosLocal.length === 0) {
-                corpo.innerHTML = "<tr><td colspan='4' style='text-align:center'>Nenhum funcionário cadastrado.</td></tr>";
-                return;
-            }
-
-            corpo.innerHTML = funcionariosLocal.map(f => `
-                <tr>
-                    <td><strong>${f.nome}</strong><br><small>${f.cpf}</small></td>
-                    <td>${f.setor || '---'}<br><small>${f.tipo_contrato || ''}</small></td>
-                    <td>R$ ${(f.salario_base || 0).toFixed(2)}</td>
-                    <td>
-                        <button class="btn btn-success" onclick="verRelatorio('${f.cpf}', '${f.nome}')" title="Relatório"><i class="fas fa-calendar-alt"></i></button>
-                        <button class="btn btn-edit" onclick="prepararEdicao('${f.cpf}')" title="Editar"><i class="fas fa-edit"></i></button>
-                        <button class="btn" onclick="abrirQR('${f.cpf}', '${f.nome}')" title="QR Code"><i class="fas fa-qrcode"></i></button>
-                        <button class="btn btn-danger" onclick="excluirFunc('${f.cpf}')" title="Excluir"><i class="fas fa-trash"></i></button>
-                    </td>
-                </tr>
-            `).join('');
-        } catch (e) { console.error("Erro ao carregar:", e); }
+    // 1. Verificação de segurança
+    if (!config || !config.id) {
+        console.error("Configuração de gestor não encontrada.");
+        return;
     }
+
+    try {
+        // Monta a URL correta usando o ID da unidade logada
+        const urlBusca = `${API_URL}/funcionarios/${config.id}`;
+        console.log("Buscando em:", urlBusca); // Para seu controle no F12
+
+        const res = await fetch(urlBusca);
+
+        if (!res.ok) {
+            throw new Error(`Erro HTTP: ${res.status}`);
+        }
+
+        funcionariosLocal = await res.json();
+
+        // 2. Limpa e valida se há dados
+        if (!funcionariosLocal || funcionariosLocal.length === 0) {
+            corpo.innerHTML = "<tr><td colspan='4' style='text-align:center; padding: 20px;'>Nenhum funcionário encontrado para esta unidade.</td></tr>";
+            return;
+        }
+
+        // 3. Renderiza a tabela
+        corpo.innerHTML = funcionariosLocal.map(f => `
+            <tr>
+                <td><strong>${f.nome || 'Sem Nome'}</strong><br><small>${f.cpf || '---'}</small></td>
+                <td>${f.setor || '---'}<br><small>${f.tipo_contrato || ''}</small></td>
+                <td>R$ ${(parseFloat(f.salario_base) || 0).toFixed(2)}</td>
+                <td>
+                    <button class="btn btn-success" onclick="verRelatorio('${f.cpf}', '${f.nome}')" title="Relatório"><i class="fas fa-calendar-alt"></i></button>
+                    <button class="btn btn-edit" onclick="prepararEdicao('${f.cpf}')" title="Editar"><i class="fas fa-edit"></i></button>
+                    <button class="btn" onclick="abrirQR('${f.cpf}', '${f.nome}')" title="QR Code"><i class="fas fa-qrcode"></i></button>
+                    <button class="btn btn-danger" onclick="excluirFunc('${f.cpf}')" title="Excluir"><i class="fas fa-trash"></i></button>
+                </td>
+            </tr>
+        `).join('');
+
+    } catch (e) {
+        console.error("Erro ao carregar funcionários:", e);
+        corpo.innerHTML = `<tr><td colspan='4' style='text-align:center; color:red; padding: 20px;'>Falha ao carregar dados: ${e.message}</td></tr>`;
+    }
+}
 
     async function salvarFuncionario() {
         const cpfLimpo = document.getElementById('f-cpf').value.replace(/\D/g, "");
