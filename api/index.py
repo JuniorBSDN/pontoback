@@ -187,17 +187,22 @@ def registrar_ponto():
 def historico_por_funcionario(cpf):
     try:
         pontos = []
+        # Limpa o CPF para garantir a busca correta
         cpf_limpo = "".join(filter(str.isdigit, str(cpf)))
-        query = db.collection('registros_ponto').where('id_funcionario', '==', cpf_limpo) \
+
+        # Busca os registros ordenados pelo mais recente
+        query = db.collection('registros_ponto') \
+            .where('id_funcionario', '==', cpf_limpo) \
             .order_by('timestamp_servidor', direction='DESCENDING').stream()
 
         for doc in query:
             item = doc.to_dict()
             item['id'] = doc.id
+            # CONVERSÃO CRUCIAL: Transforma a data do Firebase em texto ISO
             if 'timestamp_servidor' in item:
-                # Converte para string ISO para o JS ler corretamente
                 item['timestamp_servidor'] = item['timestamp_servidor'].isoformat()
             pontos.append(item)
+
         return jsonify(pontos), 200
     except Exception as e:
         return jsonify({"erro": str(e)}), 500
