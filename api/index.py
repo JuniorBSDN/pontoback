@@ -28,21 +28,24 @@ db = firestore.client()
 @app.route('/api/clientes', methods=['GET', 'POST'])
 def gerenciar_clientes():
     if request.method == 'POST':
-        dados = request.json
-        senha_final = dados.get('senha_acesso') or dados.get('senha')
-        nova_empresa = {
-            "nome_fantasia": dados.get('nome'),
-            "cnpj": dados.get('cnpj'),
-            "responsavel": dados.get('responsavel'),
-            "email": dados.get('email'),
-            "telefone": dados.get('telefone'),
-            "endereco": dados.get('endereco'),
-            "senha_acesso": senha_final,
-            "status": "ativo",
-            "data_cadastro": datetime.now()
-        }
-        db.collection('clientes').add(nova_empresa)
-        return jsonify({"status": "sucesso"}), 201
+        try:
+            dados = request.json
+            senha_final = dados.get('senha_acesso') or dados.get('senha')
+            nova_empresa = {
+                "nome_fantasia": dados.get('nome'),
+                "cnpj": dados.get('cnpj'),
+                "responsavel": dados.get('responsavel'),
+                "email": dados.get('email'),
+                "telefone": dados.get('telefone'),
+                "endereco": dados.get('endereco'),
+                "senha_acesso": senha_final,
+                "status": "ativo",
+                "data_cadastro": datetime.now()
+            }
+            db.collection('clientes').add(nova_empresa)
+            return jsonify({"status": "sucesso"}), 201
+        except Exception as e:
+            return jsonify({"erro": str(e)}), 500
 
     clientes = []
     for doc in db.collection('clientes').stream():
@@ -94,7 +97,8 @@ def cadastrar_funcionario():
             "cliente_id": str(dados.get('cliente_id')),
             "data_cadastro": datetime.now()
         }
-        db.collection('funcionarios').document(cpf).set(novo_func)
+        # merge=True evita sobrescrever campos caso já exista
+        db.collection('funcionarios').document(cpf).set(novo_func, merge=True)
         return jsonify({"status": "sucesso"}), 201
     except Exception as e:
         return jsonify({"erro": str(e)}), 500
@@ -102,13 +106,20 @@ def cadastrar_funcionario():
 
 @app.route('/api/funcionarios/<cliente_id>', methods=['GET'])
 def listar_funcionarios(cliente_id):
-    funcs = []
-    query = db.collection('funcionarios').where('cliente_id', '==', cliente_id).stream()
-    for doc in query:
-        item = doc.to_dict()
-        item['id'] = doc.id
-        funcs.append(item)
-    return jsonify(funcs), 200
+    try:
+        funcs = []
+        # Query simples sem order_by para evitar erro de índice
+        query = db.collection('funcionarios').where('cliente_id', '==', str(cliente_id)).stream()
+        for doc in query:
+            item = doc.to_dict()
+            item['id'] = doc.id
+            funcs.append(item)
+
+        # Ordenação manual por nome no Python
+        funcs.sort(key=lambda x: x.get('nome', '').lower())
+        return jsonify(funcs), 200
+    except Exception as e:
+        return jsonify({"erro": str(e)}), 500
 
 
 @app.route('/api/funcionarios/<id>', methods=['DELETE'])
@@ -117,7 +128,7 @@ def excluir_funcionario(id):
     return jsonify({"status": "removido"}), 200
 
 
-# --- ROTAS DO TABLET E REGISTRO DE PONTO (LÓGICA DE ENTRADA/SAÍDA) ---
+# --- ROTAS DO TABLET E REGISTRO DE PONTO ---
 
 @app.route('/api/clientes/login-tablet', methods=['POST'])
 def login_tablet():
@@ -144,23 +155,28 @@ def registrar_ponto():
         if not func_ref.exists:
             return jsonify({"erro": "Funcionário não encontrado"}), 404
 
-        # 2. Verifica último ponto de HOJE para decidir Tipo (Entrada/Saída)
+        # 2. Busca histórico do dia sem order_by para evitar erro de índice
         agora = datetime.now()
         inicio_dia = agora.replace(hour=0, minute=0, second=0, microsecond=0)
 
-        ultimo_ponto = db.collection('registros_ponto') \
+        docs = db.collection('registros_ponto') \
             .where('id_funcionario', '==', cpf) \
-            .where('timestamp_servidor', '>=', inicio_dia) \
-            .order_by('timestamp_servidor', direction='DESCENDING').limit(1).get()
+            .where('timestamp_servidor', '>=', inicio_dia).stream()
+
+        # Ordenação manual para pegar o último ponto do dia
+        pontos_hoje = []
+        for d in docs:
+            pontos_hoje.append(d.to_dict())
+
+        pontos_hoje.sort(key=lambda x: x['timestamp_servidor'], reverse=True)
 
         tipo = "ENTRADA"
         horas_ciclo = 0
 
-        if ultimo_ponto:
-            ultimo_dict = ultimo_ponto[0].to_dict()
+        if pontos_hoje:
+            ultimo_dict = pontos_hoje[0]
             if ultimo_dict.get('tipo') == "ENTRADA":
                 tipo = "SAÍDA"
-                # Cálculo: Agora - Horário da Entrada
                 inicio_turno = ultimo_dict['timestamp_servidor']
                 diff = agora.replace(tzinfo=None) - inicio_turno.replace(tzinfo=None)
                 horas_ciclo = round(diff.total_seconds() / 3600, 2)
@@ -178,7 +194,8 @@ def registrar_ponto():
         }
         db.collection('registros_ponto').add(novo_ponto)
 
-        return jsonify({"status": "sucesso", "tipo": tipo, "horas": horas_ciclo}), 201
+        return jsonify(
+            {"status": "sucesso", "tipo": tipo, "horas": horas_ciclo, "nome": novo_ponto["nome_funcionario"]}), 201
     except Exception as e:
         return jsonify({"erro": str(e)}), 500
 
@@ -187,21 +204,20 @@ def registrar_ponto():
 def historico_por_funcionario(cpf):
     try:
         pontos = []
-        # Limpa o CPF para garantir a busca correta
         cpf_limpo = "".join(filter(str.isdigit, str(cpf)))
 
-        # Busca os registros ordenados pelo mais recente
-        query = db.collection('registros_ponto') \
-            .where('id_funcionario', '==', cpf_limpo) \
-            .order_by('timestamp_servidor', direction='DESCENDING').stream()
+        # Query simples sem order_by (o índice manual não é mais obrigatório aqui)
+        query = db.collection('registros_ponto').where('id_funcionario', '==', cpf_limpo).stream()
 
         for doc in query:
             item = doc.to_dict()
             item['id'] = doc.id
-            # CONVERSÃO CRUCIAL: Transforma a data do Firebase em texto ISO
             if 'timestamp_servidor' in item:
                 item['timestamp_servidor'] = item['timestamp_servidor'].isoformat()
             pontos.append(item)
+
+        # Ordenação manual por data no Python (do mais recente para o mais antigo)
+        pontos.sort(key=lambda x: x['timestamp_servidor'], reverse=True)
 
         return jsonify(pontos), 200
     except Exception as e:
