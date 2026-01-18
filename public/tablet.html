@@ -2,60 +2,63 @@
 <html lang="pt-br">
 <head>
     <meta charset="UTF-8">
-    <title>Tablet PontoSaaS</title>
+    <title>PontoSaaS | Tablet</title>
     <script src="https://unpkg.com/html5-qrcode"></script>
     <style>
-        body { background: #0f172a; color: white; font-family: sans-serif; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; }
-        .card { background: #1e293b; padding: 30px; border-radius: 12px; width: 350px; text-align: center; }
+        :root { --primary: #4f46e5; --bg: #0f172a; --card: #1e293b; --success: #22c55e; --danger: #ef4444; }
+        body { background: var(--bg); color: white; font-family: sans-serif; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; }
+        .card { background: var(--card); padding: 30px; border-radius: 12px; width: 350px; text-align: center; }
         input { width: 100%; padding: 12px; margin: 10px 0; border-radius: 6px; border: 1px solid #334155; background: #0f172a; color: white; box-sizing: border-box; }
-        button { width: 100%; padding: 12px; background: #4f46e5; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; }
-        #reader { width: 100%; margin-top: 20px; border-radius: 12px; overflow: hidden; display: none; }
+        button { width: 100%; padding: 12px; background: var(--primary); color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; }
+        #reader { width: 100%; margin-top: 20px; border-radius: 12px; overflow: hidden; background: #000; }
+        .feedback { margin-top: 15px; padding: 15px; border-radius: 8px; display: none; font-weight: bold; }
     </style>
 </head>
 <body>
 
     <div id="login-area" class="card">
-        <h2>PontoSaaS</h2>
-        <p>Ativação da Unidade</p>
+        <h2 style="color: #818cf8;">Ativar Terminal</h2>
         <input type="text" id="cnpj" placeholder="CNPJ da Unidade">
-        <input type="password" id="senha" placeholder="Senha de Acesso">
-        <button onclick="fazerLogin()">ATIVAR TABLET</button>
-        <p id="erro" style="color: #ef4444; display: none;">Dados incorretos!</p>
+        <input type="password" id="senha" placeholder="Senha">
+        <button onclick="fazerLogin()">ATIVAR AGORA</button>
     </div>
 
-    <div id="ponto-area" style="display:none; text-align:center;">
-        <h1 id="nome-unidade"></h1>
+    <div id="ponto-area" style="display:none; text-align:center; width: 400px;">
+        <h2 id="nome-unidade"></h2>
         <div id="reader"></div>
-        <p>Aproxime seu QR Code</p>
-        <button onclick="sair()" style="background:#334155; width: auto; padding: 5px 15px;">Sair</button>
+        <div id="feedback" class="feedback"></div>
+        <button onclick="sair()" style="background:#334155; margin-top: 20px; width: auto;">Sair</button>
     </div>
 
     <script>
         const API_URL = "https://pontoback-tau.vercel.app/api";
         let config = JSON.parse(localStorage.getItem("config_tablet"));
+        // Gera ID único para este tablet conforme exigido pela API
+        let machineId = localStorage.getItem("machine_id") || "TAB-" + Math.random().toString(36).substr(2, 9).toUpperCase();
+        localStorage.setItem("machine_id", machineId);
 
-        function iniciar() {
-            if (config) { mostrarPonto(); }
-        }
+        function iniciar() { if (config) mostrarPonto(); }
 
         async function fazerLogin() {
-            const cnpj = document.getElementById('cnpj').value;
-            const senha = document.getElementById('senha').value;
-
             const res = await fetch(`${API_URL}/clientes/login-tablet`, {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({ cnpj, senha })
+                body: JSON.stringify({ cnpj: document.getElementById('cnpj').value, senha: document.getElementById('senha').value })
             });
 
             if (res.ok) {
                 const dados = await res.json();
                 config = { id: dados.id, nome: dados.nome };
                 localStorage.setItem("config_tablet", JSON.stringify(config));
+
+                // Ativa o dispositivo no servidor
+                await fetch(`${API_URL}/clientes/ativar-dispositivo`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ cliente_id: config.id, machine_id: machineId, modelo: "Tablet Terminal" })
+                });
                 mostrarPonto();
-            } else {
-                document.getElementById('erro').style.display = 'block';
-            }
+            } else { alert("Falha na ativação!"); }
         }
 
         function mostrarPonto() {
@@ -64,9 +67,28 @@
             document.getElementById('nome-unidade').innerText = config.nome;
 
             const scanner = new Html5QrcodeScanner("reader", { fps: 10, qrbox: 250 });
-            scanner.render((id) => {
-                alert("Ponto registrado para o ID: " + id);
-                // Aqui você chama a rota /api/ponto/registrar que já tem no index.py
+            scanner.render(async (cpfLido) => {
+                const res = await fetch(`${API_URL}/ponto/registrar`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        id_cliente: config.id, // Sincronizado com index.py
+                        id_funcionario: cpfLido,
+                        machine_id: machineId,
+                        timestamp_local: new Date().toISOString(),
+                        geo: "0,0"
+                    })
+                });
+
+                const fb = document.getElementById('feedback');
+                fb.style.display = 'block';
+                if (res.ok) {
+                    fb.innerText = "PONTO REGISTRADO!"; fb.style.background = "#22c55e";
+                } else {
+                    const err = await res.json();
+                    fb.innerText = err.erro || "ERRO"; fb.style.background = "#ef4444";
+                }
+                setTimeout(() => fb.style.display = 'none', 3000);
             });
         }
 
