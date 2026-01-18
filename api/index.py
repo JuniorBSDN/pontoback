@@ -7,14 +7,16 @@ import firebase_admin
 from firebase_admin import credentials, firestore
 
 app = Flask(__name__)
+# Configuração de CORS para permitir acesso de qualquer origem
 CORS(app, resources={r"/api/*": {"origins": "*"}})
 
-# Inicialização do Firebase
+# --- INICIALIZAÇÃO DO FIREBASE ---
 if not firebase_admin._apps:
     cred_json = os.environ.get('FIREBASE_CONFIG')
     if cred_json:
         cred = credentials.Certificate(json.loads(cred_json))
     else:
+        # Certifique-se de que este ficheiro existe no seu diretório se estiver local
         cred = credentials.Certificate("serviceAccountKey.json")
     firebase_admin.initialize_app(cred)
 
@@ -27,9 +29,7 @@ db = firestore.client()
 def gerenciar_clientes():
     if request.method == 'POST':
         dados = request.json
-        # Correção: Garantir campo único no banco
         senha_final = dados.get('senha_acesso') or dados.get('senha')
-
         nova_empresa = {
             "nome_fantasia": dados.get('nome'),
             "cnpj": dados.get('cnpj'),
@@ -73,15 +73,14 @@ def detalhe_cliente(id):
         return jsonify({"status": "removido"})
 
 
-# --- ROTAS DE FUNCIONÁRIOS (GESTÃO DA UNIDADE) ---
+# --- ROTAS DE FUNCIONÁRIOS ---
 
 @app.route('/api/funcionarios', methods=['POST'])
 def cadastrar_funcionario():
     try:
         dados = request.json
-        # Limpeza rigorosa do CPF para evitar IDs de documento inválidos
         raw_cpf = str(dados.get('cpf', ''))
-        cpf = "".join(filter(str.isdigit, raw_cpf))
+        cpf = "".join(filter(str.isdigit, raw_cpf))  # Limpa CPF
 
         if not cpf:
             return jsonify({"erro": "CPF é obrigatório"}), 400
@@ -95,11 +94,11 @@ def cadastrar_funcionario():
             "cliente_id": str(dados.get('cliente_id')),
             "data_cadastro": datetime.now()
         }
-
         db.collection('funcionarios').document(cpf).set(novo_func)
         return jsonify({"status": "sucesso"}), 201
     except Exception as e:
         return jsonify({"erro": str(e)}), 500
+
 
 @app.route('/api/funcionarios/<cliente_id>', methods=['GET'])
 def listar_funcionarios(cliente_id):
@@ -118,96 +117,90 @@ def excluir_funcionario(id):
     return jsonify({"status": "removido"}), 200
 
 
-# --- ROTAS DO TABLET E REGISTRO DE PONTO ---
+# --- ROTAS DO TABLET E REGISTRO DE PONTO (LÓGICA DE ENTRADA/SAÍDA) ---
 
 @app.route('/api/clientes/login-tablet', methods=['POST'])
 def login_tablet():
     dados = request.json
     cnpj = dados.get('cnpj')
     senha_enviada = dados.get('senha')
-
     query = db.collection('clientes').where('cnpj', '==', cnpj).where('senha_acesso', '==', senha_enviada).get()
-
     if not query:
         return jsonify({"erro": "CNPJ ou Senha incorretos"}), 401
-
     empresa = query[0].to_dict()
-    return jsonify({
-        "id": query[0].id,
-        "nome": empresa.get('nome_fantasia')
-    }), 200
-
-
-@app.route('/api/clientes/ativar-dispositivo', methods=['POST'])
-def ativar_dispositivo():
-    dados = request.json
-    cliente_id = dados.get('cliente_id')
-    machine_id = dados.get('machine_id')
-
-    if not cliente_id or not machine_id:
-        return jsonify({"erro": "Dados incompletos"}), 400
-
-    dispositivo_ref = db.collection('clientes').document(cliente_id).collection('dispositivos').document(machine_id)
-    dispositivo_ref.set({
-        "machine_id": machine_id,
-        "modelo": dados.get('modelo', 'Tablet Terminal'),
-        "data_ativacao": datetime.now(),
-        "ultimo_acesso": datetime.now(),
-        "status": "autorizado"
-    })
-    return jsonify({"status": "Dispositivo ativado"}), 200
+    return jsonify({"id": query[0].id, "nome": empresa.get('nome_fantasia')}), 200
 
 
 @app.route('/api/ponto/registrar', methods=['POST'])
 def registrar_ponto():
-    dados = request.json
-    cliente_id = dados.get('id_cliente')
-    machine_id = dados.get('machine_id')
-    cpf_funcionario = dados.get('id_funcionario')
+    try:
+        dados = request.json
+        cliente_id = dados.get('id_cliente')
+        machine_id = dados.get('machine_id')
+        cpf = "".join(filter(str.isdigit, str(dados.get('id_funcionario', ''))))
 
-    # Validação do Dispositivo
-    disp_ref = db.collection('clientes').document(cliente_id).collection('dispositivos').document(machine_id).get()
-    if not disp_ref.exists:
-        return jsonify({"erro": "Tablet não autorizado!"}), 403
+        # 1. Valida Funcionário
+        func_ref = db.collection('funcionarios').document(cpf).get()
+        if not func_ref.exists:
+            return jsonify({"erro": "Funcionário não encontrado"}), 404
 
-    # Validação do Funcionário
-    func_ref = db.collection('funcionarios').document(cpf_funcionario).get()
-    if not func_ref.exists:
-        return jsonify({"erro": "Funcionário não cadastrado nesta rede"}), 404
+        # 2. Verifica último ponto de HOJE para decidir Tipo (Entrada/Saída)
+        agora = datetime.now()
+        inicio_dia = agora.replace(hour=0, minute=0, second=0, microsecond=0)
 
-    # Registro do Ponto
-    ponto = {
-        "id_funcionario": cpf_funcionario,
-        "nome_funcionario": func_ref.to_dict().get('nome'),
-        "timestamp_local": dados.get('timestamp_local'),
-        "timestamp_servidor": datetime.now(),
-        "geolocalizacao": dados.get('geo'),
-        "machine_id": machine_id,
-        "cliente_id": cliente_id
-    }
+        ultimo_ponto = db.collection('registros_ponto') \
+            .where('id_funcionario', '==', cpf) \
+            .where('timestamp_servidor', '>=', inicio_dia) \
+            .order_by('timestamp_servidor', direction='DESCENDING').limit(1).get()
 
-    db.collection('registros_ponto').add(ponto)
+        tipo = "ENTRADA"
+        horas_ciclo = 0
 
-    # Atualiza status do tablet
-    db.collection('clientes').document(cliente_id).collection('dispositivos').document(machine_id).update({
-        "ultimo_acesso": datetime.now()
-    })
+        if ultimo_ponto:
+            ultimo_dict = ultimo_ponto[0].to_dict()
+            if ultimo_dict.get('tipo') == "ENTRADA":
+                tipo = "SAÍDA"
+                # Cálculo: Agora - Horário da Entrada
+                inicio_turno = ultimo_dict['timestamp_servidor']
+                diff = agora.replace(tzinfo=None) - inicio_turno.replace(tzinfo=None)
+                horas_ciclo = round(diff.total_seconds() / 3600, 2)
 
-    return jsonify({"status": "Ponto registrado"}), 201
+        # 3. Salva o Registro
+        novo_ponto = {
+            "id_funcionario": cpf,
+            "nome_funcionario": func_ref.to_dict().get('nome'),
+            "timestamp_servidor": agora,
+            "tipo": tipo,
+            "horas_trabalhadas": horas_ciclo,
+            "geolocalizacao": dados.get('geo', '0,0'),
+            "machine_id": machine_id,
+            "cliente_id": cliente_id
+        }
+        db.collection('registros_ponto').add(novo_ponto)
+
+        return jsonify({"status": "sucesso", "tipo": tipo, "horas": horas_ciclo}), 201
+    except Exception as e:
+        return jsonify({"erro": str(e)}), 500
 
 
-# Rota para o Gestor ver o histórico
-@app.route('/api/ponto/historico/<cliente_id>', methods=['GET'])
-def historico_pontos(cliente_id):
-    pontos = []
-    query = db.collection('registros_ponto').where('cliente_id', '==', cliente_id).order_by('timestamp_servidor',
-                                                                                            direction='DESCENDING').limit(
-        100).stream()
-    for doc in query:
-        item = doc.to_dict()
-        item['id'] = doc.id
-        pontos.append(item)
-    return jsonify(pontos), 200
+@app.route('/api/ponto/funcionario/<cpf>', methods=['GET'])
+def historico_por_funcionario(cpf):
+    try:
+        pontos = []
+        cpf_limpo = "".join(filter(str.isdigit, str(cpf)))
+        query = db.collection('registros_ponto').where('id_funcionario', '==', cpf_limpo) \
+            .order_by('timestamp_servidor', direction='DESCENDING').stream()
+
+        for doc in query:
+            item = doc.to_dict()
+            item['id'] = doc.id
+            if 'timestamp_servidor' in item:
+                # Converte para string ISO para o JS ler corretamente
+                item['timestamp_servidor'] = item['timestamp_servidor'].isoformat()
+            pontos.append(item)
+        return jsonify(pontos), 200
+    except Exception as e:
+        return jsonify({"erro": str(e)}), 500
 
 
 if __name__ == '__main__':
