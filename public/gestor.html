@@ -16,11 +16,18 @@
         table { width: 100%; border-collapse: collapse; margin-top: 1rem; }
         th { background: #f1f5f9; padding: 1rem; text-align: left; font-size: 0.75rem; color: #64748b; }
         td { padding: 1rem; border-bottom: 1px solid var(--border); }
-        .btn { background: var(--primary); color: white; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-weight: 600; }
-        .modal { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); align-items:center; justify-content:center; z-index: 1000; }
-        .modal-content { background:white; padding:2rem; border-radius:16px; width:450px; }
+        .btn { background: var(--primary); color: white; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-weight: 600; display: inline-flex; align-items: center; gap: 5px; }
+        .modal { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); align-items:center; justify-content:center; z-index: 1000; padding: 20px; }
+        .modal-content { background:white; padding:2rem; border-radius:16px; width:100%; max-width:600px; max-height: 90vh; overflow-y: auto; }
         input, select { width: 100%; padding: 10px; margin: 8px 0; border: 1px solid var(--border); border-radius: 6px; }
         .login-screen { position: fixed; inset: 0; background: var(--sidebar-bg); display: flex; align-items: center; justify-content: center; z-index: 5000; }
+
+        @media print {
+            body * { visibility: hidden; }
+            #modalRelatorio, #modalRelatorio * { visibility: visible; }
+            #modalRelatorio { position: absolute; left: 0; top: 0; width: 100%; margin: 0; padding: 0; }
+            .btn, button, .no-print { display: none !important; }
+        }
     </style>
 </head>
 <body>
@@ -30,7 +37,7 @@
         <h2 style="color:#818cf8; margin-bottom:1rem;">Gestor PontoBack</h2>
         <input type="text" id="l-cnpj" placeholder="CNPJ da Unidade">
         <input type="password" id="l-senha" placeholder="Senha">
-        <button class="btn" style="width:100%;" onclick="fazerLogin()">Entrar</button>
+        <button class="btn" style="width:100%; justify-content: center;" onclick="fazerLogin()">Entrar</button>
     </div>
 </div>
 
@@ -41,15 +48,17 @@
 </nav>
 
 <main class="main">
-    <header style="display:flex; justify-content:space-between; margin-bottom:2rem;">
+    <header style="display:flex; justify-content:space-between; margin-bottom:2rem; align-items: center;">
         <h1>Colaboradores</h1>
-        <button class="btn" onclick="document.getElementById('modalFunc').style.display='flex'">+ Novo Funcionário</button>
+        <button class="btn" onclick="document.getElementById('modalFunc').style.display='flex'">
+            <i class="fas fa-plus"></i> Novo Funcionário
+        </button>
     </header>
 
     <div class="card">
         <table>
             <thead>
-                <tr><th>Funcionário / CPF</th><th>Setor / Tipo</th><th>Salário</th><th>Ações</th></tr>
+                <tr><th>Funcionário / CPF</th><th>Setor</th><th>Salário</th><th>Ações</th></tr>
             </thead>
             <tbody id="lista-func"></tbody>
         </table>
@@ -64,8 +73,38 @@
         <input type="text" id="f-setor" placeholder="Setor">
         <input type="number" id="f-salario" placeholder="Salário Base">
         <select id="f-tipo"><option value="CLT">CLT</option><option value="PJ">PJ</option></select>
-        <button class="btn" style="width:100%; margin-top:10px;" onclick="salvarFuncionario()">Salvar</button>
-        <button onclick="this.parentElement.parentElement.style.display='none'" style="width:100%; background:none; border:none; margin-top:10px; cursor:pointer;">Cancelar</button>
+        <button class="btn" style="width:100%; margin-top:10px; justify-content: center;" onclick="salvarFuncionario()">Salvar</button>
+        <button onclick="document.getElementById('modalFunc').style.display='none'" style="width:100%; background:none; border:none; margin-top:10px; cursor:pointer; color: #64748b;">Cancelar</button>
+    </div>
+</div>
+
+<div id="modalRelatorio" class="modal">
+    <div class="modal-content" style="max-width: 800px;">
+        <div style="display:flex; justify-content:space-between; align-items: center;">
+            <h2 id="rel-nome-func">Relatório de Pontos</h2>
+            <button onclick="document.getElementById('modalRelatorio').style.display='none'" style="border:none; background:none; cursor:pointer; font-size:1.5rem;" class="no-print">&times;</button>
+        </div>
+        <hr style="margin: 1rem 0; border: 0; border-top: 1px solid var(--border);">
+
+        <div id="resumo-horas" style="margin-bottom: 1rem; font-weight: bold; color: var(--primary); font-size: 1.1rem;"></div>
+
+        <table style="font-size: 0.85rem;">
+            <thead>
+                <tr>
+                    <th>Data/Hora (Servidor)</th>
+                    <th>Dispositivo</th>
+                    <th>Localização</th>
+                </tr>
+            </thead>
+            <tbody id="lista-pontos-func"></tbody>
+        </table>
+
+        <div style="margin-top: 1.5rem; display: flex; gap: 10px;" class="no-print">
+            <button class="btn" style="flex: 1; justify-content: center; background: #10b981;" onclick="window.print()">
+                <i class="fas fa-print"></i> Imprimir / PDF
+            </button>
+            <button class="btn" style="flex: 1; justify-content: center; background: #64748b;" onclick="document.getElementById('modalRelatorio').style.display='none'">Fechar</button>
+        </div>
     </div>
 </div>
 
@@ -73,101 +112,76 @@
     <div class="modal-content" style="text-align:center;">
         <h2 id="qr-nome"></h2>
         <div id="qrcode" style="margin:20px 0; display:inline-block;"></div>
-        <p style="font-size:0.8rem; color:#64748b;">Este QR Code usa o CPF do funcionário para identificação.</p>
-        <button class="btn" style="width:100%;" onclick="document.getElementById('modalQR').style.display='none'">Fechar</button>
+        <p style="font-size:0.8rem; color:#64748b;">Aponte o tablet para este código para registrar o ponto.</p>
+        <button class="btn" style="width:100%; justify-content: center;" onclick="document.getElementById('modalQR').style.display='none'">Fechar</button>
     </div>
 </div>
 
 <script>
     const API_URL = "https://pontoback-tau.vercel.app/api";
-let config = JSON.parse(localStorage.getItem("config_gestor"));
+    let config = JSON.parse(localStorage.getItem("config_gestor"));
 
-function iniciar() {
-    if (config) {
-        document.getElementById('login-area').style.display = 'none';
-        document.getElementById('unidade-nome').innerText = config.nome;
-        carregarFuncionarios();
-    }
-}
-
-async function fazerLogin() {
-    const cnpj = document.getElementById('l-cnpj').value;
-    const senha = document.getElementById('l-senha').value;
-
-    try {
-        const res = await fetch(`${API_URL}/clientes/login-tablet`, {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ cnpj, senha })
-        });
-
-        if (res.ok) {
-            const dados = await res.json();
-            config = { id: dados.id, nome: dados.nome };
-            localStorage.setItem("config_gestor", JSON.stringify(config));
-            location.reload();
-        } else {
-            alert("Acesso negado: Verifique CNPJ e Senha.");
+    function iniciar() {
+        if (config) {
+            document.getElementById('login-area').style.display = 'none';
+            document.getElementById('unidade-nome').innerText = `Unidade: ${config.nome}`;
+            carregarFuncionarios();
         }
-    } catch (error) {
-        alert("Erro ao conectar com o servidor.");
-    }
-}
-
-async function carregarFuncionarios() {
-    try {
-        const res = await fetch(`${API_URL}/funcionarios/${config.id}`);
-        const lista = await res.json();
-        const corpoTabela = document.getElementById('lista-func');
-
-        if (lista.length === 0) {
-            corpoTabela.innerHTML = "<tr><td colspan='4'>Nenhum funcionário cadastrado.</td></tr>";
-            return;
-        }
-
-        corpoTabela.innerHTML = lista.map(f => `
-            <tr>
-                <td><strong>${f.nome}</strong><br><small>CPF: ${f.cpf}</small></td>
-                <td>${f.setor || 'Geral'}<br><small>${f.tipo_contrato || 'CLT'}</small></td>
-                <td>R$ ${f.salario_base || '0,00'}</td>
-                <td>
-                    <button class="btn" style="padding:5px 10px;" onclick="abrirQR('${f.cpf}', '${f.nome}')" title="Gerar QR Code">
-                        <i class="fas fa-qrcode"></i>
-                    </button>
-                    <button class="btn" style="padding:5px 10px; background:#ef4444;" onclick="excluirFunc('${f.cpf}')" title="Excluir">
-                        <i class="fas fa-trash"></i>
-                    </button>
-                </td>
-            </tr>
-        `).join('');
-    } catch (error) {
-        console.error("Erro ao carregar lista:", error);
-    }
-}
-async function salvarFuncionario() {
-    const btn = event.target; // Captura o botão clicado
-
-    // Captura os dados do formulário
-    const nome = document.getElementById('f-nome').value;
-    const cpf = document.getElementById('f-cpf').value;
-
-    if(!nome || !cpf) {
-        alert("Preencha Nome e CPF!");
-        return;
     }
 
-    const dados = {
-        nome: nome,
-        cpf: cpf,
-        setor: document.getElementById('f-setor').value,
-        salario_base: document.getElementById('f-salario').value,
-        tipo_contrato: document.getElementById('f-tipo').value,
-        cliente_id: config.id
-    };
+    async function fazerLogin() {
+        const cnpj = document.getElementById('l-cnpj').value;
+        const senha = document.getElementById('l-senha').value;
+        try {
+            const res = await fetch(`${API_URL}/clientes/login-tablet`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ cnpj, senha })
+            });
+            if (res.ok) {
+                const dados = await res.json();
+                config = { id: dados.id, nome: dados.nome };
+                localStorage.setItem("config_gestor", JSON.stringify(config));
+                location.reload();
+            } else { alert("Acesso negado!"); }
+        } catch (e) { alert("Erro de conexão."); }
+    }
 
-    try {
-        btn.disabled = true; // Desativa o botão para evitar cliques duplos
-        btn.innerText = "Enviando...";
+    async function carregarFuncionarios() {
+        try {
+            const res = await fetch(`${API_URL}/funcionarios/${config.id}`);
+            const lista = await res.json();
+            const corpo = document.getElementById('lista-func');
+            corpo.innerHTML = lista.map(f => `
+                <tr>
+                    <td><strong>${f.nome}</strong><br><small>CPF: ${f.cpf}</small></td>
+                    <td>${f.setor || 'Geral'}<br><small>${f.tipo_contrato || 'CLT'}</small></td>
+                    <td>R$ ${f.salario_base || '0,00'}</td>
+                    <td>
+                        <button class="btn" style="padding:5px 10px; background:#10b981;" onclick="verRelatorio('${f.cpf}', '${f.nome}')" title="Relatório">
+                            <i class="fas fa-file-invoice"></i>
+                        </button>
+                        <button class="btn" style="padding:5px 10px;" onclick="abrirQR('${f.cpf}', '${f.nome}')" title="QR Code">
+                            <i class="fas fa-qrcode"></i>
+                        </button>
+                        <button class="btn" style="padding:5px 10px; background:var(--danger);" onclick="excluirFunc('${f.cpf}')" title="Excluir">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </td>
+                </tr>
+            `).join('');
+        } catch (e) { console.error(e); }
+    }
+
+    async function salvarFuncionario() {
+        const dados = {
+            nome: document.getElementById('f-nome').value,
+            cpf: document.getElementById('f-cpf').value.replace(/\D/g, ""),
+            setor: document.getElementById('f-setor').value,
+            salario_base: parseFloat(document.getElementById('f-salario').value) || 0,
+            tipo_contrato: document.getElementById('f-tipo').value,
+            cliente_id: config.id
+        };
 
         const res = await fetch(`${API_URL}/funcionarios`, {
             method: 'POST',
@@ -176,35 +190,54 @@ async function salvarFuncionario() {
         });
 
         if (res.ok) {
-            alert("Funcionário cadastrado!");
             document.getElementById('modalFunc').style.display = 'none';
-            // Em vez de reload, vamos apenas atualizar a lista
             carregarFuncionarios();
-            // Limpa os campos
-            document.getElementById('f-nome').value = "";
-            document.getElementById('f-cpf').value = "";
-        } else {
-            const erroServidor = await res.json();
-            alert("Erro no servidor: " + (erroServidor.erro || "Falha desconhecida"));
-        }
-    } catch (e) {
-        alert("Erro de conexão. O servidor está rodando?");
-    } finally {
-        btn.disabled = false;
-        btn.innerText = "Salvar";
+        } else { alert("Erro ao salvar."); }
     }
-}
+
+    async function verRelatorio(cpf, nome) {
+        document.getElementById('rel-nome-func').innerText = `Relatório: ${nome}`;
+        const listaCorpo = document.getElementById('lista-pontos-func');
+        listaCorpo.innerHTML = "<tr><td colspan='3'>Buscando registros...</td></tr>";
+        document.getElementById('modalRelatorio').style.display = 'flex';
+
+        try {
+            // Rota de histórico que criamos no index.py
+            const res = await fetch(`${API_URL}/ponto/funcionario/${cpf}`);
+            const pontos = await res.json();
+
+            if (!pontos || pontos.length === 0) {
+                listaCorpo.innerHTML = "<tr><td colspan='3'>Sem registros.</td></tr>";
+                document.getElementById('resumo-horas').innerText = "Total de Pontos: 0";
+                return;
+            }
+
+            document.getElementById('resumo-horas').innerText = `Total de registros encontrados: ${pontos.length}`;
+
+            listaCorpo.innerHTML = pontos.map(p => {
+                // Se o timestamp_servidor for objeto do Firebase {_seconds}, converte
+                const dataRaw = p.timestamp_servidor._seconds ? new Date(p.timestamp_servidor._seconds * 1000) : new Date(p.timestamp_servidor);
+                return `
+                    <tr>
+                        <td>${dataRaw.toLocaleString('pt-BR')}</td>
+                        <td>${p.machine_id || 'Tablet'}</td>
+                        <td>${p.geolocalizacao || 'Presencial'}</td>
+                    </tr>
+                `;
+            }).join('');
+        } catch (e) { alert("Erro ao carregar histórico."); }
+    }
 
     function abrirQR(cpf, nome) {
         document.getElementById('qr-nome').innerText = nome;
         const qrDiv = document.getElementById('qrcode');
         qrDiv.innerHTML = "";
-        new QRCode(qrDiv, { text: cpf, width: 200, height: 200 }); // CPF é a chave no tablet
+        new QRCode(qrDiv, { text: cpf, width: 200, height: 200 });
         document.getElementById('modalQR').style.display = 'flex';
     }
 
     async function excluirFunc(id) {
-        if(confirm("Excluir funcionário?")) {
+        if(confirm("Excluir funcionário permanentemente?")) {
             await fetch(`${API_URL}/funcionarios/${id}`, { method: 'DELETE' });
             carregarFuncionarios();
         }
