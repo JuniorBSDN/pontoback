@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <title>PontoBack | Gestão de Unidade</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <style>
+        :root { --primary: #4f46e5; --sidebar-bg: #0f172a; --bg: #f8fafc; --border: #e2e8f0; --danger: #ef4444; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Inter', sans-serif; background: var(--bg); display: flex; }
+        .sidebar { background: var(--sidebar-bg); color: white; width: 260px; height: 100vh; padding: 2rem; position: fixed; }
+        .main { margin-left: 260px; padding: 3rem; width: 100%; }
+        .card { background: white; border-radius: 12px; border: 1px solid var(--border); padding: 1.5rem; }
+        table { width: 100%; border-collapse: collapse; margin-top: 1rem; }
+        th { background: #f1f5f9; padding: 1rem; text-align: left; font-size: 0.75rem; color: #64748b; }
+        td { padding: 1rem; border-bottom: 1px solid var(--border); }
+        .btn { background: var(--primary); color: white; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-weight: 600; }
+        .modal { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); align-items:center; justify-content:center; z-index: 1000; }
+        .modal-content { background:white; padding:2rem; border-radius:16px; width:450px; }
+        input, select { width: 100%; padding: 10px; margin: 8px 0; border: 1px solid var(--border); border-radius: 6px; }
+        .login-screen { position: fixed; inset: 0; background: var(--sidebar-bg); display: flex; align-items: center; justify-content: center; z-index: 5000; }
+    </style>
+</head>
+<body>
+
+<div id="login-area" class="login-screen">
+    <div style="background:#1e293b; padding:2rem; border-radius:12px; width:350px; text-align:center;">
+        <h2 style="color:#818cf8; margin-bottom:1rem;">Gestor PontoBack</h2>
+        <input type="text" id="l-cnpj" placeholder="CNPJ da Unidade">
+        <input type="password" id="l-senha" placeholder="Senha">
+        <button class="btn" style="width:100%;" onclick="fazerLogin()">Entrar</button>
+    </div>
+</div>
+
+<nav class="sidebar">
+    <h2>PontoSaaS</h2>
+    <p id="unidade-nome" style="color:#94a3b8; margin: 1.5rem 0; font-size: 0.8rem;"></p>
+    <button onclick="sair()" style="background:none; border:1px solid #334155; color:white; width:100%; padding:10px; border-radius:6px; cursor:pointer;">Sair</button>
+</nav>
+
+<main class="main">
+    <header style="display:flex; justify-content:space-between; margin-bottom:2rem;">
+        <h1>Colaboradores</h1>
+        <button class="btn" onclick="document.getElementById('modalFunc').style.display='flex'">+ Novo Funcionário</button>
+    </header>
+
+    <div class="card">
+        <table>
+            <thead>
+                <tr><th>Funcionário / CPF</th><th>Setor / Tipo</th><th>Salário</th><th>Ações</th></tr>
+            </thead>
+            <tbody id="lista-func"></tbody>
+        </table>
+    </div>
+</main>
+
+<div id="modalFunc" class="modal">
+    <div class="modal-content">
+        <h3>Cadastrar Funcionário</h3>
+        <input type="text" id="f-nome" placeholder="Nome Completo">
+        <input type="text" id="f-cpf" placeholder="CPF (apenas números)">
+        <input type="text" id="f-setor" placeholder="Setor">
+        <input type="number" id="f-salario" placeholder="Salário Base">
+        <select id="f-tipo"><option value="CLT">CLT</option><option value="PJ">PJ</option></select>
+        <button class="btn" style="width:100%; margin-top:10px;" onclick="salvarFuncionario()">Salvar</button>
+        <button onclick="this.parentElement.parentElement.style.display='none'" style="width:100%; background:none; border:none; margin-top:10px; cursor:pointer;">Cancelar</button>
+    </div>
+</div>
+
+<div id="modalQR" class="modal">
+    <div class="modal-content" style="text-align:center;">
+        <h2 id="qr-nome"></h2>
+        <div id="qrcode" style="margin:20px 0; display:inline-block;"></div>
+        <p style="font-size:0.8rem; color:#64748b;">Este QR Code usa o CPF do funcionário para identificação.</p>
+        <button class="btn" style="width:100%;" onclick="document.getElementById('modalQR').style.display='none'">Fechar</button>
+    </div>
+</div>
+
+<script>
+    const API_URL = "https://pontoback-tau.vercel.app/api";
+let config = JSON.parse(localStorage.getItem("config_gestor"));
+
+function iniciar() {
+    if (config) {
+        document.getElementById('login-area').style.display = 'none';
+        document.getElementById('unidade-nome').innerText = config.nome;
+        carregarFuncionarios();
+    }
+}
+
+async function fazerLogin() {
+    const cnpj = document.getElementById('l-cnpj').value;
+    const senha = document.getElementById('l-senha').value;
+
+    try {
+        const res = await fetch(`${API_URL}/clientes/login-tablet`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ cnpj, senha })
+        });
+
+        if (res.ok) {
+            const dados = await res.json();
+            config = { id: dados.id, nome: dados.nome };
+            localStorage.setItem("config_gestor", JSON.stringify(config));
+            location.reload();
+        } else {
+            alert("Acesso negado: Verifique CNPJ e Senha.");
+        }
+    } catch (error) {
+        alert("Erro ao conectar com o servidor.");
+    }
+}
+
+async function carregarFuncionarios() {
+    try {
+        const res = await fetch(`${API_URL}/funcionarios/${config.id}`);
+        const lista = await res.json();
+        const corpoTabela = document.getElementById('lista-func');
+
+        if (lista.length === 0) {
+            corpoTabela.innerHTML = "<tr><td colspan='4'>Nenhum funcionário cadastrado.</td></tr>";
+            return;
+        }
+
+        corpoTabela.innerHTML = lista.map(f => `
+            <tr>
+                <td><strong>${f.nome}</strong><br><small>CPF: ${f.cpf}</small></td>
+                <td>${f.setor || 'Geral'}<br><small>${f.tipo_contrato || 'CLT'}</small></td>
+                <td>R$ ${f.salario_base || '0,00'}</td>
+                <td>
+                    <button class="btn" style="padding:5px 10px;" onclick="abrirQR('${f.cpf}', '${f.nome}')" title="Gerar QR Code">
+                        <i class="fas fa-qrcode"></i>
+                    </button>
+                    <button class="btn" style="padding:5px 10px; background:#ef4444;" onclick="excluirFunc('${f.cpf}')" title="Excluir">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </td>
+            </tr>
+        `).join('');
+    } catch (error) {
+        console.error("Erro ao carregar lista:", error);
+    }
+}
+async function salvarFuncionario() {
+    const btn = event.target; // Captura o botão clicado
+
+    // Captura os dados do formulário
+    const nome = document.getElementById('f-nome').value;
+    const cpf = document.getElementById('f-cpf').value;
+
+    if(!nome || !cpf) {
+        alert("Preencha Nome e CPF!");
+        return;
+    }
+
+    const dados = {
+        nome: nome,
+        cpf: cpf,
+        setor: document.getElementById('f-setor').value,
+        salario_base: document.getElementById('f-salario').value,
+        tipo_contrato: document.getElementById('f-tipo').value,
+        cliente_id: config.id
+    };
+
+    try {
+        btn.disabled = true; // Desativa o botão para evitar cliques duplos
+        btn.innerText = "Enviando...";
+
+        const res = await fetch(`${API_URL}/funcionarios`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(dados)
+        });
+
+        if (res.ok) {
+            alert("Funcionário cadastrado!");
+            document.getElementById('modalFunc').style.display = 'none';
+            // Em vez de reload, vamos apenas atualizar a lista
+            carregarFuncionarios();
+            // Limpa os campos
+            document.getElementById('f-nome').value = "";
+            document.getElementById('f-cpf').value = "";
+        } else {
+            const erroServidor = await res.json();
+            alert("Erro no servidor: " + (erroServidor.erro || "Falha desconhecida"));
+        }
+    } catch (e) {
+        alert("Erro de conexão. O servidor está rodando?");
+    } finally {
+        btn.disabled = false;
+        btn.innerText = "Salvar";
+    }
+}
+
+    function abrirQR(cpf, nome) {
+        document.getElementById('qr-nome').innerText = nome;
+        const qrDiv = document.getElementById('qrcode');
+        qrDiv.innerHTML = "";
+        new QRCode(qrDiv, { text: cpf, width: 200, height: 200 }); // CPF é a chave no tablet
+        document.getElementById('modalQR').style.display = 'flex';
+    }
+
+    async function excluirFunc(id) {
+        if(confirm("Excluir funcionário?")) {
+            await fetch(`${API_URL}/funcionarios/${id}`, { method: 'DELETE' });
+            carregarFuncionarios();
+        }
+    }
+
+    function sair() { localStorage.clear(); location.reload(); }
+    iniciar();
+</script>
+</body>
+</html>
