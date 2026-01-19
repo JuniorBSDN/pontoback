@@ -65,11 +65,14 @@
             const senha = document.getElementById('t-senha').value;
 
             try {
-                const res = await fetch(`${API_URL}/clientes/login-tablet`, {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({ cnpj, senha })
-                });
+                const res = await fetch(`${API_URL}/ponto`, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({
+        cliente_id: config.id, // Certifique-se que o nome do campo é cliente_id
+        cpf: cpfLimpo          // Certifique-se que o nome do campo é cpf
+    })
+});
 
                 if (res.ok) {
                     const dados = await res.json();
