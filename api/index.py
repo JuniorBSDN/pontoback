@@ -107,57 +107,51 @@ def detalhe_funcionario(cpf):
 def registrar_ponto():
     try:
         dados = request.json
-        # O Tablet deve enviar 'cpf' e 'cliente_id'
         cpf = "".join(filter(str.isdigit, str(dados.get('cpf'))))
         cliente_id = dados.get('cliente_id')
         agora = datetime.now()
 
-        # 1. VALIDAÇÃO: O funcionário existe?
+        # Validação: Funcionário existe?
         doc_func = db.collection('funcionarios').document(cpf).get()
         if not doc_func.exists:
-            return jsonify({"erro": "CPF não cadastrado nesta unidade!"}), 404
-        
+            return jsonify({"erro": "Funcionário não cadastrado!"}), 404
         func = doc_func.to_dict()
 
-        # 2. LÓGICA DE ENTRADA/SAÍDA
-        ultimo_ponto_query = db.collection('registros_ponto')\
+        # Lógica de Alternância (Entrada/Saída)
+        ultimo_ponto = db.collection('registros_ponto')\
             .where('id_funcionario', '==', cpf)\
             .order_by('timestamp_servidor', direction=firestore.Query.DESCENDING)\
             .limit(1).get()
 
         tipo = "ENTRADA"
-        horas_ciclo = 0
-        
-        if ultimo_ponto_query:
-            ultimo = ultimo_ponto_query[0].to_dict()
-            if ultimo.get('tipo') == "ENTRADA":
-                tipo = "SAÍDA"
-                ts_entrada = ultimo.get('timestamp_servidor')
-                if hasattr(ts_entrada, 'replace'): ts_entrada = ts_entrada.replace(tzinfo=None)
-                diff = agora - ts_entrada
-                horas_ciclo = round(diff.total_seconds() / 3600, 2)
+        horas = 0
+        if ultimo_ponto and ultimo_ponto[0].to_dict().get('tipo') == "ENTRADA":
+            tipo = "SAÍDA"
+            ts_entrada = ultimo_ponto[0].to_dict().get('timestamp_servidor')
+            if hasattr(ts_entrada, 'replace'): ts_entrada = ts_entrada.replace(tzinfo=None)
+            horas = round((agora - ts_entrada).total_seconds() / 3600, 2)
 
-        # 3. SALVAR REGISTRO
-        novo_ponto = {
+        novo_registro = {
             "id_funcionario": cpf,
-            "nome_funcionario": func.get('nome', 'Funcionário'),
+            "nome_funcionario": func.get('nome'),
             "timestamp_servidor": agora,
             "tipo": tipo,
             "cliente_id": cliente_id,
-            "horas_trabalhadas": horas_ciclo
+            "horas_trabalhadas": horas
         }
-        db.collection('registros_ponto').add(novo_ponto)
-
-        return jsonify({
-            "status": "sucesso",
-            "tipo": tipo,
-            "horas": horas_ciclo,
-            "funcionario": func.get('nome')
-        }), 201
-
+        db.collection('registros_ponto').add(novo_registro)
+        return jsonify({"status": "sucesso", "tipo": tipo, "funcionario": func.get('nome'), "horas": horas}), 201
     except Exception as e:
-        print(f"Erro no Servidor: {e}")
-        return jsonify({"erro": "Erro interno no servidor"}), 500
+        return jsonify({"erro": str(e)}), 500
+
+# --- ROTAS DE GESTÃO (SINCRONIZADO COM GESTOR E ADMIN) ---
+@app.route('/api/funcionarios/detalhe/<cpf>', methods=['PUT', 'DELETE'])
+def gerenciar_func(cpf):
+    if request.method == 'PUT':
+        db.collection('funcionarios').document(cpf).update(request.json)
+        return jsonify({"status": "atualizado"}), 200
+    db.collection('funcionarios').document(cpf).delete()
+    return jsonify({"status": "removido"}), 200
 
 @app.route('/api/ponto/funcionario/<cpf>', methods=['GET'])
 def historico_ponto(cpf):
