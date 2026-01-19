@@ -1,4 +1,3 @@
-
 import os
 import json
 from datetime import datetime
@@ -22,7 +21,6 @@ if not firebase_admin._apps:
     firebase_admin.initialize_app(cred)
 
 db = firestore.client()
-
 
 # --- ROTAS DE CLIENTES (PAINEL ADMIN) ---
 
@@ -109,25 +107,27 @@ def cadastrar_funcionario():
 def listar_funcionarios(cliente_id):
     try:
         funcs = []
-        # Importante: Garantir que cliente_id seja tratado como string
+        # Query simples sem order_by para evitar erro de índice
         query = db.collection('funcionarios').where('cliente_id', '==', str(cliente_id)).stream()
-
         for doc in query:
             item = doc.to_dict()
             item['id'] = doc.id
             funcs.append(item)
-
-        # Ordenação manual para evitar necessidade de criar índices no Firebase
+        
+        # Ordenação manual por nome no Python
         funcs.sort(key=lambda x: x.get('nome', '').lower())
         return jsonify(funcs), 200
     except Exception as e:
-        print(f"Erro no backend: {str(e)}")  # Log para debug
         return jsonify({"erro": str(e)}), 500
+
+
 @app.route('/api/funcionarios/<id>', methods=['DELETE'])
 def excluir_funcionario(id):
     db.collection('funcionarios').document(id).delete()
     return jsonify({"status": "removido"}), 200
 
+
+# --- ROTAS DO TABLET E REGISTRO DE PONTO ---
 
 @app.route('/api/clientes/login-tablet', methods=['POST'])
 def login_tablet():
@@ -161,12 +161,12 @@ def registrar_ponto():
         docs = db.collection('registros_ponto') \
             .where('id_funcionario', '==', cpf) \
             .where('timestamp_servidor', '>=', inicio_dia).stream()
-
+        
         # Ordenação manual para pegar o último ponto do dia
         pontos_hoje = []
         for d in docs:
             pontos_hoje.append(d.to_dict())
-
+        
         pontos_hoje.sort(key=lambda x: x['timestamp_servidor'], reverse=True)
 
         tipo = "ENTRADA"
@@ -193,8 +193,7 @@ def registrar_ponto():
         }
         db.collection('registros_ponto').add(novo_ponto)
 
-        return jsonify(
-            {"status": "sucesso", "tipo": tipo, "horas": horas_ciclo, "nome": novo_ponto["nome_funcionario"]}), 201
+        return jsonify({"status": "sucesso", "tipo": tipo, "horas": horas_ciclo, "nome": novo_ponto["nome_funcionario"]}), 201
     except Exception as e:
         return jsonify({"erro": str(e)}), 500
 
