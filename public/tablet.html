@@ -87,7 +87,7 @@
             }
         }
 
-       function startScanner() {
+      function startScanner() {
     const scanner = new Html5QrcodeScanner("reader", {
         fps: 10,
         qrbox: { width: 250, height: 250 }
@@ -100,26 +100,26 @@
         const cpfLimpo = cpfLido.replace(/\D/g, "");
 
         try {
-            // Rota corrigida de /api/ponto/registrar para /api/ponto
+            // Rota e campos sincronizados com o index.py acima
             const res = await fetch(`${API_URL}/ponto`, { 
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({
-                    cliente_id: config.id, // Campo esperado pelo index.py
-                    cpf: cpfLimpo          // Campo esperado pelo index.py
+                    cliente_id: config.id, // ID da unidade logada
+                    cpf: cpfLimpo          // CPF lido no QR Code
                 })
             });
 
             const data = await res.json();
 
             if (res.ok) {
-                // Mensagem baseada no retorno real do seu index.py
                 let msg = data.tipo === "ENTRADA"
-                    ? `BOM TRABALHO!\nEntrada: ${data.nome || ''}`
-                    : `ATÉ LOGO!\nSaída: ${data.horas || 0}h trabalhadas`;
+                    ? `BOM TRABALHO!\nEntrada: ${data.funcionario}`
+                    : `ATÉ LOGO!\nSaída: ${data.horas}h trabalhadas`;
 
                 mostrarFeedback(msg, data.tipo === "ENTRADA" ? "sucesso" : "info");
             } else {
+                // Aqui aparecerá "CPF não cadastrado" se não houver o funcionário
                 mostrarFeedback(data.erro || "ERRO NO REGISTRO", "erro");
             }
         } catch (e) {
