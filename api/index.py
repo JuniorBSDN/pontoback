@@ -116,23 +116,31 @@ def listar_funcionarios(cliente_id):
         return jsonify({"erro": str(e)}), 500
 
 
-@app.route('/api/funcionarios/<cpf>', methods=['DELETE'])
-def excluir_funcionario(cpf):
-    try:
-        # Garante que o CPF está apenas com números
-        cpf_limpo = "".join(filter(str.isdigit, str(cpf)))
-        db.collection('funcionarios').document(cpf_limpo).delete()
-        return jsonify({"status": "sucesso"}), 200
-    except Exception as e:
-        return jsonify({"erro": str(e)}), 500
+# --- NOVAS ROTAS PARA GESTÃO DE FUNCIONÁRIOS ---
 
 @app.route('/api/funcionarios/<cpf>', methods=['PUT'])
 def alterar_funcionario(cpf):
     try:
         dados = request.json
         cpf_limpo = "".join(filter(str.isdigit, str(cpf)))
+        # Atualiza os dados no Firestore
         db.collection('funcionarios').document(cpf_limpo).update(dados)
         return jsonify({"status": "atualizado"}), 200
+    except Exception as e:
+        return jsonify({"erro": str(e)}), 500
+
+@app.route('/api/funcionarios/<cpf>', methods=['DELETE'])
+def excluir_funcionario(cpf):
+    try:
+        cpf_limpo = "".join(filter(str.isdigit, str(cpf)))
+        # 1. Exclui o funcionário
+        db.collection('funcionarios').document(cpf_limpo).delete()
+        # 2. Opcional: Excluir também os pontos vinculados a este CPF
+        pontos = db.collection('registros_ponto').where('id_funcionario', '==', cpf_limpo).stream()
+        for p in pontos:
+            p.reference.delete()
+            
+        return jsonify({"status": "removido"}), 200
     except Exception as e:
         return jsonify({"erro": str(e)}), 500
 
