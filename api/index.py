@@ -27,24 +27,21 @@ db = firestore.client()
 @app.route('/api/clientes', methods=['GET', 'POST'])
 def gerenciar_clientes():
     if request.method == 'POST':
-        try:
-            dados = request.json
-            senha_final = dados.get('senha_acesso') or dados.get('senha')
-            nova_empresa = {
-                "nome_fantasia": dados.get('nome'),
-                "cnpj": dados.get('cnpj'),
-                "responsavel": dados.get('responsavel'),
-                "email": dados.get('email'),
-                "telefone": dados.get('telefone'),
-                "endereco": dados.get('endereco'),
-                "senha_acesso": senha_final,
-                "status": "ativo",
-                "data_cadastro": datetime.now()
-            }
-            db.collection('clientes').add(nova_empresa)
-            return jsonify({"status": "sucesso"}), 201
-        except Exception as e:
-            return jsonify({"erro": str(e)}), 500
+        dados = request.json
+        senha_final = dados.get('senha_acesso') or dados.get('senha')
+        nova_empresa = {
+            "nome_fantasia": dados.get('nome'),
+            "cnpj": dados.get('cnpj'),
+            "responsavel": dados.get('responsavel'),
+            "email": dados.get('email'),
+            "telefone": dados.get('telefone'),
+            "endereco": dados.get('endereco'),
+            "senha_acesso": senha_final,
+            "status": "ativo",
+            "data_cadastro": datetime.now()
+        }
+        db.collection('clientes').add(nova_empresa)
+        return jsonify({"status": "sucesso"}), 201
 
     clientes = []
     for doc in db.collection('clientes').stream():
@@ -52,7 +49,6 @@ def gerenciar_clientes():
         item['id'] = doc.id
         clientes.append(item)
     return jsonify(clientes)
-
 
 @app.route('/api/clientes/<id>', methods=['PUT', 'DELETE'])
 def detalhe_cliente(id):
@@ -73,7 +69,6 @@ def detalhe_cliente(id):
     if request.method == 'DELETE':
         ref.delete()
         return jsonify({"status": "removido"})
-
 
 # --- ROTAS DE FUNCIONÁRIOS ---
 
@@ -96,36 +91,26 @@ def cadastrar_funcionario():
             "cliente_id": str(dados.get('cliente_id')),
             "data_cadastro": datetime.now()
         }
-        # merge=True evita sobrescrever campos caso já exista
+        # set com merge=True permite criar novo ou editar existente sem duplicar
         db.collection('funcionarios').document(cpf).set(novo_func, merge=True)
         return jsonify({"status": "sucesso"}), 201
     except Exception as e:
         return jsonify({"erro": str(e)}), 500
 
-
 @app.route('/api/funcionarios/<cliente_id>', methods=['GET'])
 def listar_funcionarios(cliente_id):
-    try:
-        funcs = []
-        # Query simples sem order_by para evitar erro de índice
-        query = db.collection('funcionarios').where('cliente_id', '==', str(cliente_id)).stream()
-        for doc in query:
-            item = doc.to_dict()
-            item['id'] = doc.id
-            funcs.append(item)
-        
-        # Ordenação manual por nome no Python
-        funcs.sort(key=lambda x: x.get('nome', '').lower())
-        return jsonify(funcs), 200
-    except Exception as e:
-        return jsonify({"erro": str(e)}), 500
-
+    funcs = []
+    query = db.collection('funcionarios').where('cliente_id', '==', cliente_id).stream()
+    for doc in query:
+        item = doc.to_dict()
+        item['id'] = doc.id
+        funcs.append(item)
+    return jsonify(funcs), 200
 
 @app.route('/api/funcionarios/<id>', methods=['DELETE'])
 def excluir_funcionario(id):
     db.collection('funcionarios').document(id).delete()
     return jsonify({"status": "removido"}), 200
-
 
 # --- ROTAS DO TABLET E REGISTRO DE PONTO ---
 
@@ -140,7 +125,6 @@ def login_tablet():
     empresa = query[0].to_dict()
     return jsonify({"id": query[0].id, "nome": empresa.get('nome_fantasia')}), 200
 
-
 @app.route('/api/ponto/registrar', methods=['POST'])
 def registrar_ponto():
     try:
@@ -149,38 +133,35 @@ def registrar_ponto():
         machine_id = dados.get('machine_id')
         cpf = "".join(filter(str.isdigit, str(dados.get('id_funcionario', ''))))
 
-        # 1. Valida Funcionário
         func_ref = db.collection('funcionarios').document(cpf).get()
         if not func_ref.exists:
             return jsonify({"erro": "Funcionário não encontrado"}), 404
 
-        # 2. Busca histórico do dia sem order_by para evitar erro de índice
         agora = datetime.now()
-        inicio_dia = agora.replace(hour=0, minute=0, second=0, microsecond=0)
-
-        docs = db.collection('registros_ponto') \
-            .where('id_funcionario', '==', cpf) \
-            .where('timestamp_servidor', '>=', inicio_dia).stream()
         
-        # Ordenação manual para pegar o último ponto do dia
-        pontos_hoje = []
+        # BUSCA SEM ORDER_BY PARA EVITAR ERRO DE ÍNDICE
+        docs = db.collection('registros_ponto').where('id_funcionario', '==', cpf).stream()
+        lista_pontos = []
         for d in docs:
-            pontos_hoje.append(d.to_dict())
+            p = d.to_dict()
+            # Filtramos apenas pontos de hoje na memória para decidir Entrada/Saída
+            if p['timestamp_servidor'].date() == agora.date():
+                lista_pontos.append(p)
         
-        pontos_hoje.sort(key=lambda x: x['timestamp_servidor'], reverse=True)
+        # Ordenamos manualmente para pegar o último registro do dia
+        lista_pontos.sort(key=lambda x: x['timestamp_servidor'], reverse=True)
 
         tipo = "ENTRADA"
         horas_ciclo = 0
 
-        if pontos_hoje:
-            ultimo_dict = pontos_hoje[0]
+        if lista_pontos:
+            ultimo_dict = lista_pontos[0]
             if ultimo_dict.get('tipo') == "ENTRADA":
                 tipo = "SAÍDA"
                 inicio_turno = ultimo_dict['timestamp_servidor']
                 diff = agora.replace(tzinfo=None) - inicio_turno.replace(tzinfo=None)
                 horas_ciclo = round(diff.total_seconds() / 3600, 2)
 
-        # 3. Salva o Registro
         novo_ponto = {
             "id_funcionario": cpf,
             "nome_funcionario": func_ref.to_dict().get('nome'),
@@ -197,14 +178,13 @@ def registrar_ponto():
     except Exception as e:
         return jsonify({"erro": str(e)}), 500
 
-
 @app.route('/api/ponto/funcionario/<cpf>', methods=['GET'])
 def historico_por_funcionario(cpf):
     try:
         pontos = []
         cpf_limpo = "".join(filter(str.isdigit, str(cpf)))
 
-        # Query simples sem order_by (o índice manual não é mais obrigatório aqui)
+        # REMOVIDO ORDER_BY PARA NÃO EXIGIR ÍNDICE MANUAL
         query = db.collection('registros_ponto').where('id_funcionario', '==', cpf_limpo).stream()
 
         for doc in query:
@@ -214,13 +194,12 @@ def historico_por_funcionario(cpf):
                 item['timestamp_servidor'] = item['timestamp_servidor'].isoformat()
             pontos.append(item)
 
-        # Ordenação manual por data no Python (do mais recente para o mais antigo)
+        # ORDENAÇÃO MANUAL NO SERVIDOR (Python)
         pontos.sort(key=lambda x: x['timestamp_servidor'], reverse=True)
 
         return jsonify(pontos), 200
     except Exception as e:
         return jsonify({"erro": str(e)}), 500
-
 
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
