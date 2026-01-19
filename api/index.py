@@ -159,32 +159,65 @@ def login_tablet():
     return jsonify({"id": query[0].id, "nome": empresa.get('nome_fantasia')})
 
 
-@app.route('/api/ponto/registrar', methods=['POST'])
+@app.route('/api/ponto', methods=['POST'])
 def registrar_ponto():
     try:
         dados = request.json
-        cpf = "".join(filter(str.isdigit, str(dados.get('id_funcionario', ''))))
-        cliente_id = str(dados.get('id_cliente'))
-
-        func_doc = db.collection('funcionarios').document(cpf).get()
-        if not func_doc.exists:
-            return jsonify({"erro": "CPF não cadastrado"}), 404
-
+        cpf = "".join(filter(str.isdigit, str(dados.get('cpf'))))
+        cliente_id = dados.get('cliente_id')
         agora = datetime.now()
-        # Lógica automática de Entrada/Saída baseada no último registo do dia
-        # ... (pode manter a lógica de horas_ciclo que já tinha)
 
+        # 1. Buscar dados do funcionário
+        doc_func = db.collection('funcionarios').document(cpf).get()
+        if not doc_func.exists:
+            return jsonify({"erro": "Funcionário não encontrado"}), 404
+        
+        func = doc_func.to_dict()
+
+        # 2. Verificar o último registro deste funcionário para decidir se é ENTRADA ou SAÍDA
+        ultimo_ponto_query = db.collection('registros_ponto')\
+            .where('id_funcionario', '==', cpf)\
+            .order_by('timestamp_servidor', direction=firestore.Query.DESCENDING)\
+            .limit(1).get()
+
+        tipo = "ENTRADA"
+        horas_ciclo = 0
+        
+        if ultimo_ponto_query:
+            ultimo_ponto = ultimo_ponto_query[0].to_dict()
+            # Se o último foi ENTRADA, este agora será SAÍDA
+            if ultimo_ponto.get('tipo') == "ENTRADA":
+                tipo = "SAÍDA"
+                # Cálculo de horas trabalhadas
+                ts_entrada = ultimo_ponto.get('timestamp_servidor')
+                # Garantir que ts_entrada é um objeto datetime
+                if isinstance(ts_entrada, str):
+                    ts_entrada = datetime.fromisoformat(ts_entrada)
+                
+                diff = agora - ts_entrada.replace(tzinfo=None)
+                horas_ciclo = round(diff.total_seconds() / 3600, 2)
+
+        # 3. Criar o novo registro
         novo_ponto = {
             "id_funcionario": cpf,
-            "nome_funcionario": func_doc.to_dict().get('nome'),
+            "nome_funcionario": func['nome'],
             "timestamp_servidor": agora,
-            "tipo": "ENTRADA",  # Simplificado; ideal usar lógica de alternância
+            "tipo": tipo,
             "cliente_id": cliente_id,
-            "horas_trabalhadas": 0
+            "horas_trabalhadas": horas_ciclo
         }
+
         db.collection('registros_ponto').add(novo_ponto)
-        return jsonify({"status": "sucesso", "nome": novo_ponto['nome_funcionario']}), 201
+
+        return jsonify({
+            "status": "sucesso",
+            "tipo": tipo,
+            "horas": horas_ciclo,
+            "nome": func['nome']
+        }), 201
+
     except Exception as e:
+        print(f"Erro no ponto: {str(e)}")
         return jsonify({"erro": str(e)}), 500
 
 
