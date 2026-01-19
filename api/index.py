@@ -99,18 +99,26 @@ def cadastrar_funcionario():
 
 @app.route('/api/funcionarios/<cliente_id>', methods=['GET'])
 def listar_funcionarios(cliente_id):
-    funcs = []
-    query = db.collection('funcionarios').where('cliente_id', '==', cliente_id).stream()
-    for doc in query:
-        item = doc.to_dict()
-        item['id'] = doc.id
-        funcs.append(item)
-    return jsonify(funcs), 200
+    try:
+        funcs = []
+        # Importante: Garantir que o ID seja string para bater com o banco
+        id_filtro = str(cliente_id)
+        
+        # Busca no Firestore filtrando pela unidade logada
+        query = db.collection('funcionarios').where('cliente_id', '==', id_filtro).stream()
 
-@app.route('/api/funcionarios/<id>', methods=['DELETE'])
-def excluir_funcionario(id):
-    db.collection('funcionarios').document(id).delete()
-    return jsonify({"status": "removido"}), 200
+        for doc in query:
+            item = doc.to_dict()
+            item['id'] = doc.id
+            funcs.append(item)
+
+        # Ordenar por nome para facilitar a visualização
+        funcs.sort(key=lambda x: x.get('nome', '').lower())
+        
+        return jsonify(funcs), 200
+    except Exception as e:
+        print(f"Erro ao listar: {e}")
+        return jsonify({"erro": str(e)}), 500
 
 # --- ROTAS DO TABLET E REGISTRO DE PONTO ---
 
