@@ -106,56 +106,65 @@ def detalhe_funcionario(cpf):
 def registrar_ponto():
     try:
         dados = request.json
+        # O tablet envia 'cpf' e 'cliente_id'. Vamos garantir que pegamos os valores certos.
         cpf = "".join(filter(str.isdigit, str(dados.get('cpf'))))
         cliente_id = dados.get('cliente_id')
         agora = datetime.now()
 
-        # 1. Verificar último registro para alternar tipo
-        ultimo_query = db.collection('registros_ponto') \
-            .where('id_funcionario', '==', cpf) \
-            .order_by('timestamp_servidor', direction=firestore.Query.DESCENDING) \
+        # 1. Verifica se o funcionário existe
+        doc_func = db.collection('funcionarios').document(cpf).get()
+        if not doc_func.exists:
+            return jsonify({"erro": "Funcionário não encontrado no banco de dados"}), 404
+        
+        func_data = doc_func.to_dict()
+
+        # 2. Busca a última batida deste funcionário para decidir se é Entrada ou Saída
+        ultimo_ponto_query = db.collection('registros_ponto')\
+            .where('id_funcionario', '==', cpf)\
+            .order_by('timestamp_servidor', direction=firestore.Query.DESCENDING)\
             .limit(1).get()
 
         tipo = "ENTRADA"
         horas_ciclo = 0
 
-        if ultimo_query:
-            ultimo = ultimo_query[0].to_dict()
+        if ultimo_ponto_query:
+            ultimo = ultimo_ponto_query[0].to_dict()
+            # Se o último foi ENTRADA, este agora será SAÍDA
             if ultimo.get('tipo') == "ENTRADA":
                 tipo = "SAÍDA"
                 ts_entrada = ultimo.get('timestamp_servidor')
-                if isinstance(ts_entrada, str):
-                    ts_entrada = datetime.fromisoformat(ts_entrada)
-
-                diff = agora - ts_entrada.replace(tzinfo=None)
+                
+                # Converte timestamp do Firestore para objeto Python para calcular
+                if hasattr(ts_entrada, 'replace'): 
+                    ts_entrada = ts_entrada.replace(tzinfo=None)
+                elif isinstance(ts_entrada, str):
+                    ts_entrada = datetime.fromisoformat(ts_entrada).replace(tzinfo=None)
+                
+                diff = agora - ts_entrada
                 horas_ciclo = round(diff.total_seconds() / 3600, 2)
 
-        # 2. Buscar nome do funcionário
-        doc_func = db.collection('funcionarios').document(cpf).get()
-        nome_func = doc_func.to_dict().get('nome', 'Funcionário') if doc_func.exists else "Funcionário"
-
-        # 3. Salvar
-        novo_ponto = {
+        # 3. Salva o novo registro
+        novo_registro = {
             "id_funcionario": cpf,
-            "nome_funcionario": nome_func,
+            "nome_funcionario": func_data.get('nome', 'Funcionário'),
             "timestamp_servidor": agora,
             "tipo": tipo,
             "cliente_id": cliente_id,
             "horas_trabalhadas": horas_ciclo
         }
-        db.collection('registros_ponto').add(novo_ponto)
+        
+        db.collection('registros_ponto').add(novo_registro)
 
         return jsonify({
             "status": "sucesso",
             "tipo": tipo,
-            "funcionario": nome_func,
+            "funcionario": func_data.get('nome'),
             "horas": horas_ciclo
         }), 201
+
     except Exception as e:
+        print(f"Erro no Servidor: {str(e)}")
         return jsonify({"erro": str(e)}), 500
-
-
-# --- HISTÓRICO PARA RELATÓRIOS ---
 
 @app.route('/api/ponto/funcionario/<cpf>', methods=['GET'])
 def historico_ponto(cpf):
