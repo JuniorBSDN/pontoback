@@ -131,73 +131,65 @@
 </div>
 
 <script>
-    const API_URL = "https://pontoback-tau.vercel.app/api"; // Verifique se esta URL está ativa no Vercel
+    // URL de Produção na Vercel
+    const API_URL = "https://pontoback-tau.vercel.app/api"; 
+    
+    // Recupera os dados da unidade logada
     let config = JSON.parse(localStorage.getItem("config_gestor"));
     let funcionariosLocal = [];
 
-    function iniciar() {
-        if (config) {
-            document.getElementById('login-area').style.display = 'none';
-            document.getElementById('unidade-nome').innerText = config.nome;
-            carregarFuncionarios();
-        }
-    }
-
-    async function fazerLogin() {
-        const cnpj = document.getElementById('l-cnpj').value;
-        const senha = document.getElementById('l-senha').value;
-        try {
-            const res = await fetch(`${API_URL}/clientes/login-tablet`, {
-                method: 'POST', headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({ cnpj, senha })
-            });
-            if (res.ok) {
-                const dados = await res.json();
-                config = { id: dados.id, nome: dados.nome };
-                localStorage.setItem("config_gestor", JSON.stringify(config));
-                location.reload();
-            } else { alert("CNPJ ou Senha incorretos"); }
-        } catch (e) { alert("Erro ao conectar com o servidor."); }
+    // Proteção de página: Redireciona se não houver login
+    if (!config || !config.id) {
+        alert("Sessão expirada. Por favor, faça login novamente.");
+        window.location.href = "login.html"; 
+    } else {
+        document.getElementById('nome-gestor').innerText = config.nome;
+        carregarFuncionarios();
     }
 
     async function carregarFuncionarios() {
+        const corpo = document.getElementById('lista-func');
+        
         try {
+            // Chamada API utilizando o ID da unidade armazenado no config
             const res = await fetch(`${API_URL}/funcionarios/${config.id}`);
+            if (!res.ok) throw new Error("Erro ao carregar dados do servidor");
+
             funcionariosLocal = await res.json();
-            const corpo = document.getElementById('lista-func');
 
             if (funcionariosLocal.length === 0) {
-                corpo.innerHTML = "<tr><td colspan='4' style='text-align:center'>Nenhum funcionário cadastrado.</td></tr>";
+                corpo.innerHTML = "<tr><td colspan='4' style='text-align:center; padding:20px;'>Nenhum funcionário cadastrado nesta unidade.</td></tr>";
                 return;
             }
 
             corpo.innerHTML = funcionariosLocal.map(f => `
                 <tr>
                     <td><strong>${f.nome}</strong><br><small>${f.cpf}</small></td>
-                    <td>${f.setor || '---'}<br><small>${f.tipo_contrato || ''}</small></td>
-                    <td>R$ ${(f.salario_base || 0).toFixed(2)}</td>
+                    <td>${f.setor || '---'}</td>
+                    <td>R$ ${parseFloat(f.salario_base || 0).toFixed(2)}</td>
                     <td>
-                        <button class="btn btn-success" onclick="verRelatorio('${f.cpf}', '${f.nome}')" title="Relatório"><i class="fas fa-calendar-alt"></i></button>
-                        <button class="btn btn-edit" onclick="prepararEdicao('${f.cpf}')" title="Editar"><i class="fas fa-edit"></i></button>
+                        <button class="btn btn-success" onclick="verRelatorio('${f.cpf}', '${f.nome}')" title="Histórico"><i class="fas fa-calendar-alt"></i></button>
                         <button class="btn" onclick="abrirQR('${f.cpf}', '${f.nome}')" title="QR Code"><i class="fas fa-qrcode"></i></button>
                         <button class="btn btn-danger" onclick="excluirFunc('${f.cpf}')" title="Excluir"><i class="fas fa-trash"></i></button>
                     </td>
                 </tr>
             `).join('');
-        } catch (e) { console.error("Erro ao carregar:", e); }
+        } catch (e) {
+            console.error(e);
+            corpo.innerHTML = "<tr><td colspan='4' style='color:red; text-align:center;'>Falha na ligação com a API.</td></tr>";
+        }
     }
 
-    async function salvarFuncionario() {
-        const cpfLimpo = document.getElementById('f-cpf').value.replace(/\D/g, "");
-        if (!cpfLimpo) return alert("CPF é obrigatório");
-
+    // Função para Salvar/Cadastrar Funcionário
+    document.getElementById('form-func').onsubmit = async (e) => {
+        e.preventDefault();
         const dados = {
             nome: document.getElementById('f-nome').value,
-            cpf: cpfLimpo,
+            cpf: document.getElementById('f-cpf').value,
             setor: document.getElementById('f-setor').value,
-            salario_base: parseFloat(document.getElementById('f-salario').value) || 0,
-            tipo_contrato: document.getElementById('f-tipo').value,
-            cliente_id: config.id
+            salario_base: document.getElementById('f-salario').value,
+            tipo_contrato: document.getElementById('f-contrato').value,
+            cliente_id: config.id // Vincula automaticamente ao gestor logado
         };
 
         try {
@@ -206,55 +198,18 @@
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify(dados)
             });
+            
             if (res.ok) {
                 fecharModalFunc();
                 carregarFuncionarios();
-            } else { alert("Erro ao salvar funcionário."); }
-        } catch (e) { alert("Falha na comunicação com o servidor."); }
-    }
-
-    async function verRelatorio(cpf, nome) {
-        document.getElementById('rel-nome-func').innerText = `Relatório: ${nome}`;
-        const listaCorpo = document.getElementById('lista-pontos-func');
-        document.getElementById('modalRelatorio').style.display = 'flex';
-        listaCorpo.innerHTML = "<tr><td colspan='3'>Buscando histórico...</td></tr>";
-
-        const cpfLimpo = cpf.replace(/\D/g, "");
-
-        try {
-            const res = await fetch(`${API_URL}/ponto/funcionario/${cpfLimpo}`);
-            const pontos = await res.json();
-
-            if (!res.ok || !pontos || pontos.length === 0) {
-                listaCorpo.innerHTML = "<tr><td colspan='3'>Nenhum ponto registrado.</td></tr>";
-                document.getElementById('total-horas-acumuladas').innerText = "0.00h";
-                document.getElementById('qtd-marcacoes').innerText = "0";
-                return;
+            } else {
+                alert("Erro ao salvar funcionário.");
             }
-
-            let totalHoras = 0;
-            listaCorpo.innerHTML = pontos.map(p => {
-                const dataFormatada = new Date(p.timestamp_servidor).toLocaleString('pt-BR');
-                const corTipo = p.tipo === "ENTRADA" ? "#10b981" : "#ef4444";
-                if (p.tipo === "SAÍDA") totalHoras += (p.horas_trabalhadas || 0);
-
-                return `
-                    <tr>
-                        <td>${dataFormatada}</td>
-                        <td><b style="color:${corTipo}">${p.tipo}</b></td>
-                        <td>${p.tipo === "SAÍDA" ? (p.horas_trabalhadas || 0).toFixed(2) + 'h' : '---'}</td>
-                    </tr>
-                `;
-            }).join('');
-
-            document.getElementById('total-horas-acumuladas').innerText = totalHoras.toFixed(2) + "h";
-            document.getElementById('qtd-marcacoes').innerText = pontos.length;
         } catch (e) {
-            listaCorpo.innerHTML = "<tr><td colspan='3'>Erro ao conectar.</td></tr>";
+            alert("Falha de conexão.");
         }
-    }
+    };
 
-    // ... Manter funções abrirQR, excluirFunc, sair e fecharModalFunc como estão ...
     function abrirQR(cpf, nome) {
         document.getElementById('qr-nome').innerText = nome;
         const qrDiv = document.getElementById('qrcode');
@@ -264,19 +219,21 @@
     }
 
     async function excluirFunc(cpf) {
-        if(confirm(`Deseja excluir o funcionário ${cpf}?`)) {
+        if(confirm(`Deseja excluir o funcionário com CPF ${cpf}?`)) {
             await fetch(`${API_URL}/funcionarios/${cpf}`, { method: 'DELETE' });
             carregarFuncionarios();
         }
     }
 
-    function fecharModalFunc() {
-        document.getElementById('modalFunc').style.display = 'none';
-        ['f-nome', 'f-cpf', 'f-setor', 'f-salario'].forEach(id => document.getElementById(id).value = "");
+    function sair() {
+        localStorage.removeItem("config_gestor");
+        window.location.reload();
     }
 
-    function sair() { localStorage.clear(); location.reload(); }
-    iniciar();
+    function fecharModalFunc() {
+        document.getElementById('modalFunc').style.display = 'none';
+        document.getElementById('form-func').reset();
+    }
 </script>
 </body>
 </html>
