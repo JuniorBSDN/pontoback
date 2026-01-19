@@ -87,50 +87,48 @@
             }
         }
 
-        function startScanner() {
-            const scanner = new Html5QrcodeScanner("reader", {
-                fps: 15, // Aumentado para leitura mais rápida
-                qrbox: { width: 250, height: 250 }
+       function startScanner() {
+    const scanner = new Html5QrcodeScanner("reader", {
+        fps: 10,
+        qrbox: { width: 250, height: 250 }
+    });
+
+    scanner.render(async (cpfLido) => {
+        if (window.processandoPonto) return;
+        window.processandoPonto = true;
+
+        const cpfLimpo = cpfLido.replace(/\D/g, "");
+
+        try {
+            // Rota corrigida de /api/ponto/registrar para /api/ponto
+            const res = await fetch(`${API_URL}/ponto`, { 
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    cliente_id: config.id, // Campo esperado pelo index.py
+                    cpf: cpfLimpo          // Campo esperado pelo index.py
+                })
             });
 
-            scanner.render(async (cpfLido) => {
-                // Previne leituras múltiplas consecutivas
-                if (window.processandoPonto) return;
-                window.processandoPonto = true;
+            const data = await res.json();
 
-                // Limpa o CPF de qualquer caractere não numérico
-                const cpfLimpo = cpfLido.replace(/\D/g, "");
+            if (res.ok) {
+                // Mensagem baseada no retorno real do seu index.py
+                let msg = data.tipo === "ENTRADA"
+                    ? `BOM TRABALHO!\nEntrada: ${data.nome || ''}`
+                    : `ATÉ LOGO!\nSaída: ${data.horas || 0}h trabalhadas`;
 
-                try {
-                    // Chamada sincronizada com a rota @app.route('/api/ponto', methods=['POST'])
-                    const res = await fetch(`${API_URL}/ponto`, {
-                        method: 'POST',
-                        headers: {'Content-Type': 'application/json'},
-                        body: JSON.stringify({
-                            cliente_id: config.id, // Sincronizado com backend
-                            cpf: cpfLimpo          // Sincronizado com backend
-                        })
-                    });
-
-                    const data = await res.json();
-
-                    if (res.ok) {
-                        let msg = data.tipo === "ENTRADA"
-                            ? `BOM TRABALHO!\n${data.funcionario || 'Entrada Registrada'}`
-                            : `ATÉ LOGO!\nSaída: ${data.horas || 0}h trabalhadas hoje`;
-
-                        mostrarFeedback(msg, data.tipo === "ENTRADA" ? "sucesso" : "info");
-                    } else {
-                        mostrarFeedback(data.erro || "FALHA NO REGISTRO", "erro");
-                    }
-                } catch (e) {
-                    mostrarFeedback("FALHA NA COMUNICAÇÃO", "erro");
-                } finally {
-                    // Aguarda 5 segundos para limpar o estado e permitir novo scan
-                    setTimeout(() => { window.processandoPonto = false; }, 5000);
-                }
-            });
+                mostrarFeedback(msg, data.tipo === "ENTRADA" ? "sucesso" : "info");
+            } else {
+                mostrarFeedback(data.erro || "ERRO NO REGISTRO", "erro");
+            }
+        } catch (e) {
+            mostrarFeedback("FALHA NA CONEXÃO", "erro");
+        } finally {
+            setTimeout(() => { window.processandoPonto = false; }, 5000);
         }
+    });
+}
 
         function mostrarFeedback(mensagem, tipo) {
             const fb = document.getElementById('feedback');
