@@ -92,23 +92,31 @@
         fps: 10,
         qrbox: { width: 250, height: 250 }
     });
+          
+scanner.render(async (cpfLido) => {
+    if (window.processandoPonto) return;
+    window.processandoPonto = true;
+    const cpfLimpo = cpfLido.replace(/\D/g, "");
 
-    scanner.render(async (cpfLido) => {
-        if (window.processandoPonto) return;
-        window.processandoPonto = true;
-
-        const cpfLimpo = cpfLido.replace(/\D/g, "");
-
-        try {
-            // Rota e campos sincronizados com o index.py acima
-            const res = await fetch(`${API_URL}/ponto`, { 
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({
-                    cliente_id: config.id, // ID da unidade logada
-                    cpf: cpfLimpo          // CPF lido no QR Code
-                })
-            });
+    try {
+        const res = await fetch(`${API_URL}/ponto`, { // Rota sincronizada
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                cliente_id: config.id, // ID da Unidade
+                cpf: cpfLimpo          // CPF do QR Code
+            })
+        });
+        const data = await res.json();
+        if (res.ok) {
+            let msg = data.tipo === "ENTRADA" ? `BOM TRABALHO!\n${data.funcionario}` : `ATÉ LOGO!\n${data.horas}h trabalhadas`;
+            mostrarFeedback(msg, data.tipo === "ENTRADA" ? "sucesso" : "info");
+        } else {
+            mostrarFeedback(data.erro || "ERRO", "erro");
+        }
+    } catch (e) { mostrarFeedback("FALHA NA CONEXÃO", "erro"); }
+    finally { setTimeout(() => { window.processandoPonto = false; }, 5000); }
+});
 
             const data = await res.json();
 
