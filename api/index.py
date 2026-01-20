@@ -4,28 +4,27 @@ import firebase_admin
 from firebase_admin import credentials, firestore
 from flask import Flask, request, jsonify
 from flask_cors import CORS
-from datetime import datetime, timedelta, timezone
+from datetime import datetime
 
 app = Flask(__name__)
+# Configuração do CORS para permitir que o site acesse a API
 CORS(app)
 
-# --- CONFIGURAÇÃO FIREBASE ---
+# 1. Configuração do Firebase
 FIREBASE_CONFIG = os.getenv("FIREBASE_CONFIG")
+
 if FIREBASE_CONFIG:
-    cred = credentials.Certificate(json.loads(FIREBASE_CONFIG))
+    cred_dict = json.loads(FIREBASE_CONFIG)
+    cred = credentials.Certificate(cred_dict)
 else:
-    # Local: certifique-se de ter o arquivo serviceAccountKey.json
+    # Verifique se o arquivo serviceAccountKey.json está na mesma pasta
     cred = credentials.Certificate("serviceAccountKey.json")
 
-if not firebase_admin._apps:
-    firebase_admin.initialize_app(cred)
+firebase_admin.initialize_app(cred)
 db = firestore.client()
 
-# Helper para fuso horário de Brasília
-def get_agora_br():
-    return datetime.now(timezone(timedelta(hours=-3)))
 
-# --- ROTAS DE CLIENTES (USADAS NO index.html e gestor.html) ---
+# --- ROTAS DE CLIENTES (UNIDADES) ---
 
 @app.route('/api/clientes', methods=['GET', 'POST'])
 def gerenciar_clientes():
@@ -33,7 +32,7 @@ def gerenciar_clientes():
         dados = request.json
         doc_ref = db.collection('clientes').document()
         dados['id'] = doc_ref.id
-        # Garante nome_fantasia para o login do gestor
+        # Garante que 'nome_fantasia' seja salvo conforme esperado pelo frontend
         if 'nome' in dados and 'nome_fantasia' not in dados:
             dados['nome_fantasia'] = dados['nome']
         doc_ref.set(dados)
@@ -42,121 +41,124 @@ def gerenciar_clientes():
     docs = db.collection('clientes').stream()
     return jsonify([doc.to_dict() for doc in docs])
 
-@app.route('/api/clientes/<id>', methods=['GET', 'PUT', 'DELETE'])
-def detalhe_cliente(id):
+
+@app.route('/api/clientes/<id>', methods=['PUT', 'DELETE'])
+def editar_cliente(id):
     doc_ref = db.collection('clientes').document(id)
-    if request.method == 'GET':
-        doc = doc_ref.get()
-        return jsonify(doc.to_dict()) if doc.exists else ({'erro': 'n/a'}, 404)
-    
     if request.method == 'PUT':
         dados = request.json
+        if 'nome' in dados: dados['nome_fantasia'] = dados['nome']
         doc_ref.update(dados)
         return jsonify({"status": "atualizado"})
-    
     doc_ref.delete()
     return jsonify({"status": "excluido"})
 
-@app.route('/api/clientes/login-tablet', methods=['POST'])
-def login_unidade():
-    dados = request.json
-    cnpj_limpo = "".join(filter(str.isdigit, str(dados.get('cnpj', ''))))
-    senha = str(dados.get('senha', ''))
 
-    docs = db.collection('clientes').stream()
-    for doc in docs:
-        c = doc.to_dict()
-        cnpj_banco = "".join(filter(str.isdigit, str(c.get('cnpj', ''))))
-        if cnpj_banco == cnpj_limpo and str(c.get('senha_acesso')) == senha:
-            return jsonify({"id": c['id'], "nome": c.get('nome_fantasia', c.get('nome'))})
-    
-    return jsonify({"erro": "Acesso Negado"}), 401
+@app.route('/api/clientes/login-tablet', methods=['POST'])
+def login_tablet():
+    dados = request.json
+    docs = db.collection('clientes') \
+        .where('cnpj', '==', dados['cnpj']) \
+        .where('senha_acesso', '==', dados['senha']) \
+        .limit(1).get()
+
+    if not docs:
+        return jsonify({"erro": "Acesso Negado"}), 401
+
+    cliente = docs[0].to_dict()
+    # Retorna o nome_fantasia para o frontend
+    return jsonify({"id": cliente['id'], "nome": cliente.get('nome_fantasia', cliente.get('nome'))})
+
 
 @app.route('/api/clientes/ativar-dispositivo', methods=['POST'])
 def ativar_dispositivo():
-    # Rota chamada pelo tablet.html ao ler QR de ativação
+    # Rota exigida pelo tablet.html para registrar o dispositivo
     dados = request.json
-    id_cliente = dados.get('cliente_id')
-    db.collection('clientes').document(id_cliente).collection('dispositivos').add({
-        **dados, "data_ativacao": get_agora_br().isoformat()
-    })
-    return jsonify({"status": "ativado"})
+    cliente_id = dados.get('cliente_id')
+    db.collection('clientes').document(cliente_id).collection('dispositivos').add(dados)
+    return jsonify({"status": "dispositivo_ativado"}), 200
 
-# --- ROTAS DE FUNCIONÁRIOS (USADAS NO gestor.html) ---
+
+# --- ROTAS DE FUNCIONÁRIOS ---
 
 @app.route('/api/funcionarios', methods=['POST'])
 def criar_funcionario():
     dados = request.json
-    cpf = "".join(filter(str.isdigit, str(dados['cpf'])))
-    dados['cpf'] = cpf
-    # O gestor.html precisa que o CPF seja a chave para o Tablet ler
-    db.collection('funcionarios').document(cpf).set(dados)
+    # O gestor.html usa o CPF como identificador único
+    db.collection('funcionarios').document(dados['cpf']).set(dados)
     return jsonify(dados), 201
 
-@app.route('/api/funcionarios/<identificador>', methods=['GET', 'PUT', 'DELETE'])
-def gerenciar_funcionarios(identificador):
-    # GET: Se o identificador for o cliente_id (lista funcionários da unidade)
+
+@app.route('/api/funcionarios/<param>', methods=['GET', 'PUT', 'DELETE'])
+def gerenciar_funcionarios(param):
     if request.method == 'GET':
-        docs = db.collection('funcionarios').where('cliente_id', '==', identificador).stream()
+        # Corrigido: O gestor.html envia o ID da UNIDADE nesta rota
+        docs = db.collection('funcionarios').where('cliente_id', '==', param).stream()
         return jsonify([doc.to_dict() for doc in docs])
 
-    doc_ref = db.collection('funcionarios').document(identificador)
-    
+    doc_ref = db.collection('funcionarios').document(param)
     if request.method == 'PUT':
         doc_ref.update(request.json)
         return jsonify({"status": "atualizado"})
-    
+
     if request.method == 'DELETE':
         doc_ref.delete()
         return jsonify({"status": "excluido"})
 
-# --- ROTAS DE PONTO (USADAS NO tablet.html e gestor.html) ---
+
+# --- ROTAS DE PONTO ---
 
 @app.route('/api/ponto/registrar', methods=['POST'])
 def registrar_ponto():
     dados = request.json
-    cpf = "".join(filter(str.isdigit, str(dados.get('id_funcionario', ''))))
-    id_cliente = dados.get('id_cliente')
+    cpf = dados['id_funcionario']
 
-    f_ref = db.collection('funcionarios').document(cpf).get()
-    if not f_ref.exists:
-        return jsonify({"erro": "CPF não cadastrado"}), 404
-    
-    func = f_ref.to_dict()
-    agora = get_agora_br()
+    func_ref = db.collection('funcionarios').document(cpf).get()
+    if not func_ref.exists:
+        return jsonify({"erro": "Funcionário não cadastrado"}), 404
 
-    # Ordenação manual para evitar erro de índice composto no Firestore
-    pontos = db.collection('pontos').where('id_funcionario', '==', cpf).get()
-    lista = [p.to_dict() for p in pontos]
-    lista.sort(key=lambda x: x['timestamp_servidor'], reverse=True)
+    func_data = func_ref.to_dict()
+    # Busca o último ponto para alternar entre ENTRADA e SAÍDA
+    ultimo_ponto = db.collection('pontos') \
+        .where('id_funcionario', '==', cpf) \
+        .order_by('timestamp_servidor', direction=firestore.Query.DESCENDING) \
+        .limit(1).get()
 
     tipo = "ENTRADA"
-    horas = 0
-    if lista and lista[0]['tipo'] == "ENTRADA":
-        tipo = "SAÍDA"
-        inicio = datetime.fromisoformat(lista[0]['timestamp_servidor'])
-        if inicio.tzinfo is None: inicio = inicio.replace(tzinfo=timezone(timedelta(hours=-3)))
-        horas = round((agora - inicio).total_seconds() / 3600, 2)
+    horas_trabalhadas = 0
+    agora = datetime.now()
+
+    if ultimo_ponto:
+        ultimo = ultimo_ponto[0].to_dict()
+        if ultimo['tipo'] == "ENTRADA":
+            tipo = "SAÍDA"
+            inicio = datetime.fromisoformat(ultimo['timestamp_servidor'])
+            diff = agora - inicio
+            horas_trabalhadas = round(diff.total_seconds() / 3600, 2)
 
     novo_ponto = {
         "id_funcionario": cpf,
-        "funcionario": func['nome'],
-        "id_cliente": id_cliente,
+        "funcionario": func_data['nome'],
+        "id_cliente": dados['id_cliente'],
         "tipo": tipo,
         "timestamp_servidor": agora.isoformat(),
-        "horas_trabalhadas": horas
+        "horas_trabalhadas": horas_trabalhadas,
+        "machine_id": dados.get('machine_id', 'unknown')
     }
     db.collection('pontos').add(novo_ponto)
-    return jsonify({"tipo": tipo, "funcionario": func['nome'], "horas": horas})
+
+    return jsonify({"tipo": tipo, "funcionario": func_data['nome'], "horas": horas_trabalhadas})
+
 
 @app.route('/api/ponto/funcionario/<cpf>', methods=['GET'])
-def relatorio(cpf):
-    # Rota usada pelo modal de relatório no gestor.html
-    cpf_limpo = "".join(filter(str.isdigit, str(cpf)))
-    docs = db.collection('pontos').where('id_funcionario', '==', cpf_limpo).get()
-    lista = [d.to_dict() for d in docs]
-    lista.sort(key=lambda x: x['timestamp_servidor'])
-    return jsonify(lista)
+def relatorio_ponto(cpf):
+    # Rota usada pelo gestor.html para carregar a tabela de pontos
+    docs = db.collection('pontos') \
+        .where('id_funcionario', '==', cpf) \
+        .order_by('timestamp_servidor', direction=firestore.Query.ASCENDING) \
+        .stream()
+    return jsonify([doc.to_dict() for doc in docs])
+
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(debug=True, port=5000)
