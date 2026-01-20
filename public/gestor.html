@@ -364,28 +364,39 @@ async function excluirFunc(cpf) {
     // --- FUNÇÕES DE RELATÓRIO E QR (MANTIDAS) ---
 
     async function verRelatorio(cpf, nome) {
-        document.getElementById('rel-nome-func').innerText = `Relatório: ${nome}`;
-        const listaCorpo = document.getElementById('lista-pontos-func');
-        listaCorpo.innerHTML = "<tr><td colspan='3'>A carregar...</td></tr>";
-        document.getElementById('modalRelatorio').style.display = 'flex';
+    document.getElementById('rel-nome-func').innerText = `Relatório: ${nome}`;
+    const listaCorpo = document.getElementById('lista-pontos-func');
+    listaCorpo.innerHTML = "<tr><td colspan='3'>A carregar...</td></tr>";
+    document.getElementById('modalRelatorio').style.display = 'flex';
 
-        try {
-            const res = await fetch(`${API_URL}/ponto/funcionario/${cpf}`);
-            const pontos = await res.json();
-            let totalHoras = 0;
-            document.getElementById('qtd-marcacoes').innerText = pontos.length;
+    try {
+        const res = await fetch(`${API_URL}/ponto/funcionario/${cpf}`);
+        const pontos = await res.json();
+        let totalHoras = 0;
+        document.getElementById('qtd-marcacoes').innerText = pontos.length;
 
-            listaCorpo.innerHTML = pontos.map(p => {
-                if (p.tipo === "SAÍDA") totalHoras += (p.horas_trabalhadas || 0);
-                return `<tr>
-                    <td>${new Date(p.timestamp_servidor).toLocaleString('pt-BR')}</td>
-                    <td><span style="color:${p.tipo === 'ENTRADA' ? '#10b981' : '#ef4444'}; font-weight:bold;">${p.tipo}</span></td>
-                    <td>${p.tipo === "SAÍDA" ? p.horas_trabalhadas.toFixed(2) + 'h' : '---'}</td>
-                </tr>`;
-            }).join('');
-            document.getElementById('total-horas-acumuladas').innerText = totalHoras.toFixed(2) + "h";
-        } catch (e) { alert("Falha ao obter relatório."); }
+        listaCorpo.innerHTML = pontos.map(p => {
+            // Soma as horas apenas se for um registro de SAÍDA
+            if (p.tipo === "SAÍDA") {
+                totalHoras += parseFloat(p.horas_trabalhadas || 0);
+            }
+
+            // Formata a data para o padrão brasileiro
+            const dataFormatada = new Date(p.timestamp_servidor).toLocaleString('pt-BR');
+
+            return `<tr>
+                <td>${dataFormatada}</td>
+                <td><span style="color:${p.tipo === 'ENTRADA' ? '#10b981' : '#ef4444'}; font-weight:bold;">${p.tipo}</span></td>
+                <td>${p.tipo === "SAÍDA" ? (p.horas_trabalhadas ? p.horas_trabalhadas.toFixed(2) + 'h' : '0.00h') : '---'}</td>
+            </tr>`;
+        }).join('');
+
+        document.getElementById('total-horas-acumuladas').innerText = totalHoras.toFixed(2) + "h";
+    } catch (e) {
+        console.error(e);
+        alert("Falha ao obter relatório.");
     }
+}
 
     function abrirQR(cpf, nome) {
         document.getElementById('qr-nome').innerText = nome;
