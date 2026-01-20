@@ -2,7 +2,7 @@
 <html lang="pt-br">
 <head>
     <meta charset="UTF-8">
-    <title>PontoBack | Gestão de Unidade</title>
+    <title>PontoBack | Gestão de Funcionários</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
@@ -55,7 +55,7 @@
 </div>
 
 <nav class="sidebar">
-    <h2 style="color:#818cf8; margin-bottom: 2rem;">PontoSaaS</h2>
+    <h2 style="color:#818cf8; margin-bottom: 2rem;">PontoBack <hr> Gestor</h2>
     <div style="margin-bottom: 2rem;">
         <small style="color:#94a3b8; display:block;">Unidade Ativa:</small>
         <strong id="unidade-nome" style="font-size: 1.1rem;">---</strong>
@@ -65,7 +65,7 @@
 
 <main class="main">
     <header style="display:flex; justify-content:space-between; margin-bottom:2.5rem; align-items: center;">
-        <h1>Colaboradores</h1>
+        <h1>Funcionários</h1>
         <button class="btn" onclick="abrirModalCadastro()">
             <i class="fas fa-plus"></i> Novo Funcionário
         </button>
@@ -258,9 +258,11 @@ async function carregarFuncionarios() {
         document.getElementById('modalFunc').style.display = 'flex';
     }
 
+// Substitua sua função salvarFuncionario por esta
 async function salvarFuncionario() {
     const cpfInput = document.getElementById('f-cpf');
     const cpf = cpfInput.value.replace(/\D/g, "");
+    const isEdit = cpfInput.disabled; // Se o campo está travado, é edição
 
     const dados = {
         nome: document.getElementById('f-nome').value,
@@ -271,22 +273,41 @@ async function salvarFuncionario() {
         cliente_id: config.id
     };
 
-    // Se o CPF estiver desativado, significa que estamos EDITANDO (PUT)
-    const url = cpfInput.disabled ? `${API_URL}/funcionarios/${cpf}` : `${API_URL}/funcionarios`;
-    const metodo = cpfInput.disabled ? 'PUT' : 'POST';
+    const url = isEdit ? `${API_URL}/funcionarios/${cpf}` : `${API_URL}/funcionarios`;
+    const method = isEdit ? 'PUT' : 'POST';
 
-    const res = await fetch(url, {
-        method: metodo,
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify(dados)
-    });
+    try {
+        const res = await fetch(url, {
+            method: method,
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(dados)
+        });
 
-    if (res.ok) {
-        document.getElementById('modalFunc').style.display = 'none';
-        cpfInput.disabled = false; // Reativa para o próximo cadastro
-        carregarFuncionarios();
-    } else {
-        alert("Erro ao gravar dados.");
+        if (res.ok) {
+            fecharModalCadastro();
+            carregarFuncionarios();
+            alert("Operação realizada com sucesso!");
+        } else {
+            alert("Erro ao processar no servidor.");
+        }
+    } catch (e) {
+        alert("FALHA NA CONEXÃO: Verifique a URL da API ou o CORS.");
+    }
+}
+
+// Substitua sua função excluirFunc por esta
+async function excluirFunc(cpf) {
+    if(!confirm("Deseja realmente excluir este funcionário?")) return;
+
+    try {
+        const res = await fetch(`${API_URL}/funcionarios/${cpf}`, { method: 'DELETE' });
+        if(res.ok) {
+            carregarFuncionarios();
+        } else {
+            alert("Erro ao excluir.");
+        }
+    } catch (e) {
+        alert("Erro de conexão.");
     }
 }
 
