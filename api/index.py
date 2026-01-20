@@ -4,10 +4,9 @@ import firebase_admin
 from firebase_admin import credentials, firestore
 from flask import Flask, request, jsonify
 from flask_cors import CORS
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 
 app = Flask(__name__)
-# Configuração do CORS para permitir que o site acesse a API
 CORS(app)
 
 # 1. Configuração do Firebase
@@ -17,11 +16,17 @@ if FIREBASE_CONFIG:
     cred_dict = json.loads(FIREBASE_CONFIG)
     cred = credentials.Certificate(cred_dict)
 else:
-    # Verifique se o arquivo serviceAccountKey.json está na mesma pasta
+    # Para teste local, certifique-se que o arquivo está na pasta
     cred = credentials.Certificate("serviceAccountKey.json")
 
 firebase_admin.initialize_app(cred)
 db = firestore.client()
+
+
+# Helper para fuso horário de Brasília
+def get_agora_br():
+    fuso_br = timezone(timedelta(hours=-3))
+    return datetime.now(fuso_br)
 
 
 # --- ROTAS DE CLIENTES (UNIDADES) ---
@@ -32,7 +37,6 @@ def gerenciar_clientes():
         dados = request.json
         doc_ref = db.collection('clientes').document()
         dados['id'] = doc_ref.id
-        # Garante que 'nome_fantasia' seja salvo conforme esperado pelo frontend
         if 'nome' in dados and 'nome_fantasia' not in dados:
             dados['nome_fantasia'] = dados['nome']
         doc_ref.set(dados)
@@ -57,26 +61,21 @@ def editar_cliente(id):
 @app.route('/api/clientes/login-tablet', methods=['POST'])
 def login_tablet():
     dados = request.json
-    docs = db.collection('clientes') \
-        .where('cnpj', '==', dados['cnpj']) \
-        .where('senha_acesso', '==', dados['senha']) \
-        .limit(1).get()
+    cnpj_input = "".join(filter(str.isdigit, dados.get('cnpj', '')))
+    senha_input = dados.get('senha')
 
-    if not docs:
-        return jsonify({"erro": "Acesso Negado"}), 401
+    # Busca clientes e valida no Python para evitar erro de índice composto
+    docs = db.collection('clientes').stream()
+    for doc in docs:
+        cliente = doc.to_dict()
+        cnpj_banco = "".join(filter(str.isdigit, cliente.get('cnpj', '')))
+        if cnpj_banco == cnpj_input and cliente.get('senha_acesso') == senha_input:
+            return jsonify({
+                "id": cliente['id'],
+                "nome": cliente.get('nome_fantasia', cliente.get('nome'))
+            })
 
-    cliente = docs[0].to_dict()
-    # Retorna o nome_fantasia para o frontend
-    return jsonify({"id": cliente['id'], "nome": cliente.get('nome_fantasia', cliente.get('nome'))})
-
-
-@app.route('/api/clientes/ativar-dispositivo', methods=['POST'])
-def ativar_dispositivo():
-    # Rota exigida pelo tablet.html para registrar o dispositivo
-    dados = request.json
-    cliente_id = dados.get('cliente_id')
-    db.collection('clientes').document(cliente_id).collection('dispositivos').add(dados)
-    return jsonify({"status": "dispositivo_ativado"}), 200
+    return jsonify({"erro": "CNPJ ou Senha incorretos"}), 401
 
 
 # --- ROTAS DE FUNCIONÁRIOS ---
@@ -84,15 +83,17 @@ def ativar_dispositivo():
 @app.route('/api/funcionarios', methods=['POST'])
 def criar_funcionario():
     dados = request.json
-    # O gestor.html usa o CPF como identificador único
-    db.collection('funcionarios').document(dados['cpf']).set(dados)
+    # Salva usando o CPF como ID do documento para facilitar a busca no ponto
+    cpf = "".join(filter(str.isdigit, dados['cpf']))
+    dados['cpf'] = cpf
+    db.collection('funcionarios').document(cpf).set(dados)
     return jsonify(dados), 201
 
 
 @app.route('/api/funcionarios/<param>', methods=['GET', 'PUT', 'DELETE'])
 def gerenciar_funcionarios(param):
     if request.method == 'GET':
-        # Corrigido: O gestor.html envia o ID da UNIDADE nesta rota
+        # Busca funcionários de uma unidade específica
         docs = db.collection('funcionarios').where('cliente_id', '==', param).stream()
         return jsonify([doc.to_dict() for doc in docs])
 
@@ -111,56 +112,67 @@ def gerenciar_funcionarios(param):
 @app.route('/api/ponto/registrar', methods=['POST'])
 def registrar_ponto():
     dados = request.json
-    cpf = dados['id_funcionario']
+    cpf = "".join(filter(str.isdigit, dados.get('id_funcionario', '')))
+    id_cliente = dados.get('id_cliente')
 
     func_ref = db.collection('funcionarios').document(cpf).get()
     if not func_ref.exists:
-        return jsonify({"erro": "Funcionário não cadastrado"}), 404
+        return jsonify({"erro": "Funcionário não encontrado"}), 404
 
     func_data = func_ref.to_dict()
+    agora = get_agora_br()
 
-    # BUSCA SEM ORDER_BY (Para evitar erro de índice no Firestore)
+    # Busca histórico para decidir se é Entrada ou Saída sem exigir índice do Firestore
     pontos_ref = db.collection('pontos').where('id_funcionario', '==', cpf).get()
-
-    # Ordenamos manualmente no Python pelo timestamp
     pontos_lista = [p.to_dict() for p in pontos_ref]
+    # Ordena pelo mais recente no Python
     pontos_lista.sort(key=lambda x: x['timestamp_servidor'], reverse=True)
 
     tipo = "ENTRADA"
     horas_trabalhadas = 0
-    agora = datetime.now()
 
     if pontos_lista:
-        ultimo = pontos_lista[0]  # O primeiro após o sort reverse é o último registro
+        ultimo = pontos_lista[0]
         if ultimo['tipo'] == "ENTRADA":
             tipo = "SAÍDA"
             inicio = datetime.fromisoformat(ultimo['timestamp_servidor'])
+            # Garante que 'inicio' tenha timezone para o cálculo
+            if inicio.tzinfo is None:
+                inicio = inicio.replace(tzinfo=timezone(timedelta(hours=-3)))
+
             diff = agora - inicio
             horas_trabalhadas = round(diff.total_seconds() / 3600, 2)
 
     novo_ponto = {
         "id_funcionario": cpf,
         "funcionario": func_data['nome'],
-        "id_cliente": dados['id_cliente'],
+        "id_cliente": id_cliente,
         "tipo": tipo,
         "timestamp_servidor": agora.isoformat(),
         "horas_trabalhadas": horas_trabalhadas
     }
     db.collection('pontos').add(novo_ponto)
 
-    return jsonify({"tipo": tipo, "funcionario": func_data['nome'], "horas": horas_trabalhadas})
+    return jsonify({
+        "tipo": tipo,
+        "funcionario": func_data['nome'],
+        "horas": horas_trabalhadas,
+        "mensagem": "Ponto registrado com sucesso!"
+    })
 
 
 @app.route('/api/ponto/funcionario/<cpf>', methods=['GET'])
 def relatorio_ponto(cpf):
-    # Busca apenas pelo filtro de CPF
-    docs = db.collection('pontos').where('id_funcionario', '==', cpf).get()
+    cpf_limpo = "".join(filter(str.isdigit, cpf))
+    docs = db.collection('pontos').where('id_funcionario', '==', cpf_limpo).get()
 
-    # Transforma em lista e ordena por data (do mais antigo para o mais novo)
     lista_pontos = [doc.to_dict() for doc in docs]
+    # Ordena do mais antigo para o mais novo para o relatório
     lista_pontos.sort(key=lambda x: x['timestamp_servidor'])
 
     return jsonify(lista_pontos)
 
+
 if __name__ == '__main__':
+    # Porta 5000 para local, Vercel ignora o __main__
     app.run(debug=True, port=5000)
