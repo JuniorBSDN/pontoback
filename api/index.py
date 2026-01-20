@@ -25,20 +25,51 @@ def get_agora_br():
     return datetime.now(timezone(timedelta(hours=-3)))
 
 
-# --- LOGIN DO DONO (ADMIN) ---
+# --- LOGIN ADMINISTRATIVO (DONO) ---
 @app.route('/api/admin/login', methods=['POST'])
 def login_admin():
     dados = request.json
     senha_digitada = str(dados.get('senha', '')).strip()
-    # A senha fica na Vercel (Environment Variables) ou usa a padrão abaixo
-    senha_mestra = os.getenv("ADMIN_PASSWORD")
+    # Puxa ADMIN_PASSWORD da Vercel. Se não existir, usa 'admin123'
+    senha_mestra = os.getenv("ADMIN_PASSWORD", "admin123")
 
     if senha_digitada == senha_mestra:
         return jsonify({"auth": True}), 200
     return jsonify({"erro": "Senha incorreta"}), 401
 
 
-# --- LOGIN DA UNIDADE (TABLET/GESTOR) ---
+# --- GERENCIAMENTO DE CLIENTES ---
+@app.route('/api/clientes', methods=['GET', 'POST'])
+def gerenciar_clientes():
+    if request.method == 'POST':
+        dados = request.json
+        doc_ref = db.collection('clientes').document()
+        dados['id'] = doc_ref.id
+        if 'nome' in dados: dados['nome_fantasia'] = dados['nome']
+        doc_ref.set(dados)
+        return jsonify(dados), 201
+
+    docs = db.collection('clientes').stream()
+    return jsonify([doc.to_dict() for doc in docs])
+
+
+@app.route('/api/clientes/<id>', methods=['GET', 'PUT', 'DELETE'])
+def detalhe_cliente(id):
+    doc_ref = db.collection('clientes').document(id)
+    if request.method == 'PUT':
+        dados = request.json
+        dados['id'] = id
+        doc_ref.update(dados)
+        return jsonify({"status": "atualizado"})
+    if request.method == 'DELETE':
+        doc_ref.delete()
+        return jsonify({"status": "excluido"})
+
+    doc = doc_ref.get()
+    return jsonify(doc.to_dict()) if doc.exists else ({'erro': '404'}, 404)
+
+
+# --- LOGIN DO TABLET ---
 @app.route('/api/clientes/login-tablet', methods=['POST'])
 def login_unidade():
     try:
@@ -53,69 +84,27 @@ def login_unidade():
             senha_banco = str(c.get('senha_acesso', '')).strip()
 
             if cnpj_banco == cnpj_input and senha_banco == senha_input:
-                return jsonify({"id": c.get('id', doc.id), "nome": c.get('nome_fantasia', c.get('nome'))}), 200
+                return jsonify({"id": doc.id, "nome": c.get('nome_fantasia', c.get('nome'))}), 200
 
-        return jsonify({"erro": "CNPJ ou Senha incorretos"}), 401
+        return jsonify({"erro": "Credenciais inválidas"}), 401
     except Exception as e:
         return jsonify({"erro": str(e)}), 500
 
 
-# --- CRUD DE CLIENTES (CORREÇÃO DA FALHA DE EDIÇÃO) ---
-@app.route('/api/clientes', methods=['GET', 'POST'])
-def gerenciar_clientes():
-    if request.method == 'POST':
-        dados = request.json
-        doc_ref = db.collection('clientes').document()
-        dados['id'] = doc_ref.id
-        doc_ref.set(dados)
-        return jsonify(dados), 201
-    docs = db.collection('clientes').stream()
-    return jsonify([doc.to_dict() for doc in docs])
-
-
-@app.route('/api/clientes/<id>', methods=['PUT', 'DELETE'])
-def detalhe_cliente(id):
-    doc_ref = db.collection('clientes').document(id)
-    if request.method == 'PUT':
-        doc_ref.update(request.json)
-        return jsonify({"status": "sucesso"}), 200
-    if request.method == 'DELETE':
-        doc_ref.delete()
-        return jsonify({"status": "excluido"}), 200
-
-
-# --- FUNCIONÁRIOS E PONTO (MANTIDOS) ---
-@app.route('/api/funcionarios', methods=['POST'])
-def criar_funcionario():
-    dados = request.json
-    cpf = "".join(filter(str.isdigit, str(dados['cpf'])))
-    dados['cpf'] = cpf
-    db.collection('funcionarios').document(cpf).set(dados)
-    return jsonify(dados), 201
-
-
-@app.route('/api/funcionarios/<param>', methods=['GET', 'PUT', 'DELETE'])
-def gerenciar_funcionarios(param):
-    if request.method == 'GET':
-        docs = db.collection('funcionarios').where('cliente_id', '==', param).stream()
-        return jsonify([doc.to_dict() for doc in docs])
-    doc_ref = db.collection('funcionarios').document(param)
-    if request.method == 'PUT':
-        doc_ref.update(request.json)
-        return jsonify({"status": "atualizado"})
-    doc_ref.delete()
-    return jsonify({"status": "excluido"})
-
-
+# --- REGISTO DE PONTO ---
 @app.route('/api/ponto/registrar', methods=['POST'])
 def registrar_ponto():
     dados = request.json
     cpf = "".join(filter(str.isdigit, str(dados.get('id_funcionario', ''))))
     f_ref = db.collection('funcionarios').document(cpf).get()
-    if not f_ref.exists: return jsonify({"erro": "CPF não cadastrado"}), 404
+
+    if not f_ref.exists:
+        return jsonify({"erro": "CPF não encontrado"}), 404
 
     func = f_ref.to_dict()
     agora = get_agora_br()
+
+    # Ordenação manual no Python para evitar necessidade de índices compostos no Firebase
     docs = db.collection('pontos').where('id_funcionario', '==', cpf).get()
     pontos = [p.to_dict() for p in docs]
     pontos.sort(key=lambda x: x['timestamp_servidor'], reverse=True)
@@ -123,7 +112,8 @@ def registrar_ponto():
     tipo, horas = "ENTRADA", 0
     if pontos and pontos[0]['tipo'] == "ENTRADA":
         tipo = "SAÍDA"
-        inicio = datetime.fromisoformat(pontos[0]['timestamp_servidor']).replace(tzinfo=timezone(timedelta(hours=-3)))
+        inicio = datetime.fromisoformat(pontos[0]['timestamp_servidor'])
+        if inicio.tzinfo is None: inicio = inicio.replace(tzinfo=timezone(timedelta(hours=-3)))
         horas = round((agora - inicio).total_seconds() / 3600, 2)
 
     novo_ponto = {
@@ -134,10 +124,25 @@ def registrar_ponto():
     return jsonify({"tipo": tipo, "funcionario": func['nome'], "horas": horas})
 
 
+# --- FUNCIONÁRIOS ---
+@app.route('/api/funcionarios', methods=['POST'])
+def criar_func():
+    dados = request.json
+    cpf = "".join(filter(str.isdigit, str(dados['cpf'])))
+    dados['cpf'] = cpf
+    db.collection('funcionarios').document(cpf).set(dados)
+    return jsonify(dados), 201
+
+
+@app.route('/api/funcionarios/<cliente_id>', methods=['GET'])
+def listar_funcs(cliente_id):
+    docs = db.collection('funcionarios').where('cliente_id', '==', cliente_id).stream()
+    return jsonify([doc.to_dict() for doc in docs])
+
+
 @app.route('/api/ponto/funcionario/<cpf>', methods=['GET'])
 def relatorio(cpf):
-    cpf_limpo = "".join(filter(str.isdigit, str(cpf)))
-    docs = db.collection('pontos').where('id_funcionario', '==', cpf_limpo).get()
+    docs = db.collection('pontos').where('id_funcionario', '==', cpf).get()
     lista = [d.to_dict() for d in docs]
     lista.sort(key=lambda x: x['timestamp_servidor'])
     return jsonify(lista)
