@@ -102,21 +102,40 @@
     // CAMADA DE SEGURANÇA DO DONO
     async function validarAcessoDono() {
         const senha = prompt("Senha Administrativa:");
-        const res = await fetch(`${API_URL}/admin/login`, {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ senha })
-        });
-        if (!res.ok) {
-            alert("Acesso Negado!");
-            window.location.reload();
-        } else {
-            document.body.style.display = "block";
-            carregarEmpresas();
+        if (!senha) return window.location.reload(); // Evita entrar vazio
+
+        try {
+            const res = await fetch(`${API_URL}/admin/login`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ senha })
+            });
+            if (!res.ok) {
+                alert("Acesso Negado!");
+                window.location.reload();
+            } else {
+                document.body.style.display = "block";
+                carregarEmpresas();
+            }
+        } catch (e) {
+            alert("Erro de conexão com o servidor.");
         }
     }
     document.body.style.display = "none";
     validarAcessoDono();
+
+    // FUNÇÕES DE MODAL (ESSENCIAIS PARA FECHAR A JANELA)
+    function abrirModal() {
+        document.getElementById('form-empresa').reset();
+        document.getElementById('edit-id').value = ""; // MUITO IMPORTANTE: limpa o ID para novo cadastro
+        document.getElementById('modal-titulo').innerText = "Novo Cliente";
+        document.getElementById('modalEmpresa').style.display = 'flex';
+    }
+
+    function closeModal() {
+        document.getElementById('modalEmpresa').style.display = 'none';
+        document.getElementById('form-empresa').reset();
+    }
 
     async function carregarEmpresas() {
         try {
@@ -125,9 +144,9 @@
             const tabela = document.getElementById('lista-clientes');
             tabela.innerHTML = clientesCache.map(emp => `
                 <tr>
-                    <td><strong>${emp.nome_fantasia || emp.nome}</strong><br><small>${emp.endereco}</small></td>
+                    <td><strong>${emp.nome_fantasia || emp.nome || 'N/A'}</strong><br><small>${emp.endereco || ''}</small></td>
                     <td><code>${emp.cnpj}</code></td>
-                    <td><span style="background:#e0e7ff; padding:5px; border-radius:5px;">${emp.senha_acesso}</span></td>
+                    <td><span style="background:#e0e7ff; padding:5px; border-radius:5px;">${emp.senha_acesso || '---'}</span></td>
                     <td>
                         <button class="btn-icon" onclick="gerarQRAtivacao('${emp.id}')"><i class="fas fa-qrcode"></i></button>
                         <button class="btn-icon" onclick="editarEmpresa('${emp.id}')"><i class="fas fa-edit"></i></button>
@@ -141,9 +160,11 @@
     document.getElementById('form-empresa').onsubmit = async (e) => {
         e.preventDefault();
         const id = document.getElementById('edit-id').value;
+        const nomeValor = document.getElementById('nome').value;
+
         const dados = {
-            nome: document.getElementById('nome').value,
-            nome_fantasia: document.getElementById('nome').value,
+            nome: nomeValor,
+            nome_fantasia: nomeValor,
             cnpj: document.getElementById('cnpj').value,
             responsavel: document.getElementById('responsavel').value,
             email: document.getElementById('email').value,
@@ -155,35 +176,51 @@
         const url = id ? `${API_URL}/clientes/${id}` : `${API_URL}/clientes`;
         const method = id ? 'PUT' : 'POST';
 
-        const res = await fetch(url, {
-            method: method,
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify(dados)
-        });
+        try {
+            const res = await fetch(url, {
+                method: method,
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(dados)
+            });
 
-        if(res.ok) {
-            closeModal();
-            carregarEmpresas();
-        } else {
-            alert("Erro ao salvar!");
+            if(res.ok) {
+                closeModal(); // AGORA VAI FECHAR PORQUE A FUNÇÃO EXISTE ACIMA
+                carregarEmpresas();
+            } else {
+                alert("Erro ao salvar no servidor!");
+            }
+        } catch (err) {
+            alert("Erro de conexão!");
         }
     };
 
     function editarEmpresa(id) {
         const emp = clientesCache.find(c => c.id === id);
+        if(!emp) return;
+
+        document.getElementById('modal-titulo').innerText = "Editar Unidade";
         document.getElementById('edit-id').value = emp.id;
         document.getElementById('nome').value = emp.nome_fantasia || emp.nome;
         document.getElementById('cnpj').value = emp.cnpj;
         document.getElementById('responsavel').value = emp.responsavel;
         document.getElementById('email').value = emp.email;
         document.getElementById('telefone').value = emp.telefone;
-        document.getElementById('senha_acesso').value = emp.senha_acesso;
+        document.getElementById('senha_acesso').value = emp.senha_acesso || "";
         document.getElementById('endereco').value = emp.endereco;
         document.getElementById('modalEmpresa').style.display = 'flex';
     }
 
+    function gerarQRAtivacao(id) {
+        const emp = clientesCache.find(c => c.id === id);
+        const qrContent = btoa(JSON.stringify({ id: emp.id, nome: emp.nome_fantasia || emp.nome, api: API_URL }));
+        const container = document.getElementById('qrcode-container');
+        container.innerHTML = "";
+        new QRCode(container, { text: qrContent, width: 256, height: 256 });
+        document.getElementById('modalQR').style.display = 'flex';
+    }
+
     async function excluirEmpresa(id) {
-        if(confirm("Excluir?")) {
+        if(confirm("Deseja realmente excluir esta unidade?")) {
             await fetch(`${API_URL}/clientes/${id}`, { method: 'DELETE' });
             carregarEmpresas();
         }
