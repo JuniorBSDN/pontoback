@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PontoSaaS | Painel Administrativo</title>
+    <title>PontoBack | Painel Administrativo</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
@@ -41,10 +41,10 @@
 <body>
 
 <div class="wrapper">
-    <nav class="sidebar"><h2 style="color: #818cf8;">PontoSaaS</h2></nav>
+    <nav class="sidebar"><h2 style="color: #818cf8;">PontoBack<hr></h2></nav>
     <main class="main-content">
         <header>
-            <div><h1>Unidades e Clientes</h1><p style="color: #64748b;">Administre as filiais e senhas</p></div>
+            <div><h1>Unidades e Clientes</h1><p style="color: #64748b;">Administre as filiais e senhas de acesso.</p></div>
             <button onclick="abrirModal()" style="background:var(--primary); color:white; border:none; padding:12px 24px; border-radius:8px; cursor:pointer; font-weight:600;">
                 <i class="fas fa-plus"></i> Novo Cliente
             </button>
@@ -164,6 +164,16 @@
         closeModal();
         carregarEmpresas();
     };
+
+
+    async function salvarEmpresa(dados) {
+        await fetch(`${API_URL}/clientes`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(dados)
+        });
+        location.reload();
+    }
 
     async function excluirEmpresa(id) {
         if(confirm("Excluir unidade?")) { await fetch(`${API_URL}/clientes/${id}`, { method: 'DELETE' }); carregarEmpresas(); }
