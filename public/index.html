@@ -99,6 +99,25 @@
     const API_URL = "https://pontoback-tau.vercel.app/api";
     let clientesCache = [];
 
+    // CAMADA DE SEGURANÇA DO DONO
+    async function validarAcessoDono() {
+        const senha = prompt("Senha Administrativa:");
+        const res = await fetch(`${API_URL}/admin/login`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ senha })
+        });
+        if (!res.ok) {
+            alert("Acesso Negado!");
+            window.location.reload();
+        } else {
+            document.body.style.display = "block";
+            carregarEmpresas();
+        }
+    }
+    document.body.style.display = "none";
+    validarAcessoDono();
+
     async function carregarEmpresas() {
         try {
             const res = await fetch(`${API_URL}/clientes`);
@@ -106,42 +125,17 @@
             const tabela = document.getElementById('lista-clientes');
             tabela.innerHTML = clientesCache.map(emp => `
                 <tr>
-                    <td><strong>${emp.nome_fantasia || 'N/A'}</strong><br><small>${emp.endereco || ''}</small></td>
-                    <td><code>${emp.cnpj}</code><br><small>${emp.email || ''}</small></td>
-                    <td><span style="background:#e0e7ff; padding:5px 10px; border-radius:6px; font-weight:bold; color:#4f46e5">${emp.senha_acesso || 'NÃO DEFINIDA'}</span></td>
+                    <td><strong>${emp.nome_fantasia || emp.nome}</strong><br><small>${emp.endereco}</small></td>
+                    <td><code>${emp.cnpj}</code></td>
+                    <td><span style="background:#e0e7ff; padding:5px; border-radius:5px;">${emp.senha_acesso}</span></td>
                     <td>
-                        <button class="btn-icon" onclick="gerarQRAtivacao('${emp.id}')"><i class="fas fa-qrcode" style="color:var(--primary)"></i></button>
-                        <button class="btn-icon" onclick="editarEmpresa('${emp.id}')"><i class="fas fa-edit" style="color:var(--warning)"></i></button>
-                        <button class="btn-icon" onclick="excluirEmpresa('${emp.id}')"><i class="fas fa-trash" style="color:var(--danger)"></i></button>
+                        <button class="btn-icon" onclick="gerarQRAtivacao('${emp.id}')"><i class="fas fa-qrcode"></i></button>
+                        <button class="btn-icon" onclick="editarEmpresa('${emp.id}')"><i class="fas fa-edit"></i></button>
+                        <button class="btn-icon" onclick="excluirEmpresa('${emp.id}')"><i class="fas fa-trash"></i></button>
                     </td>
                 </tr>
             `).join('');
         } catch (e) { console.error(e); }
-    }
-
-    function abrirModal() { document.getElementById('form-empresa').reset(); document.getElementById('edit-id').value = ""; document.getElementById('modalEmpresa').style.display = 'flex'; }
-    function closeModal() { document.getElementById('modalEmpresa').style.display = 'none'; }
-
-    function gerarQRAtivacao(id) {
-        const emp = clientesCache.find(c => c.id === id);
-        const qrContent = btoa(JSON.stringify({ id: emp.id, nome: emp.nome_fantasia, api: API_URL }));
-        const container = document.getElementById('qrcode-container');
-        container.innerHTML = "";
-        new QRCode(container, { text: qrContent, width: 256, height: 256 });
-        document.getElementById('modalQR').style.display = 'flex';
-    }
-
-    function editarEmpresa(id) {
-        const emp = clientesCache.find(c => c.id === id);
-        document.getElementById('edit-id').value = emp.id;
-        document.getElementById('nome').value = emp.nome_fantasia;
-        document.getElementById('cnpj').value = emp.cnpj;
-        document.getElementById('responsavel').value = emp.responsavel;
-        document.getElementById('email').value = emp.email;
-        document.getElementById('telefone').value = emp.telefone;
-        document.getElementById('senha_acesso').value = emp.senha_acesso || "";
-        document.getElementById('endereco').value = emp.endereco;
-        document.getElementById('modalEmpresa').style.display = 'flex';
     }
 
     document.getElementById('form-empresa').onsubmit = async (e) => {
@@ -149,36 +143,51 @@
         const id = document.getElementById('edit-id').value;
         const dados = {
             nome: document.getElementById('nome').value,
+            nome_fantasia: document.getElementById('nome').value,
             cnpj: document.getElementById('cnpj').value,
             responsavel: document.getElementById('responsavel').value,
             email: document.getElementById('email').value,
             telefone: document.getElementById('telefone').value,
-            senha_acesso: document.getElementById('senha_acesso').value, // Sincronizado com API
+            senha_acesso: document.getElementById('senha_acesso').value,
             endereco: document.getElementById('endereco').value
         };
-        await fetch(id ? `${API_URL}/clientes/${id}` : `${API_URL}/clientes`, {
-            method: id ? 'PUT' : 'POST',
+
+        const url = id ? `${API_URL}/clientes/${id}` : `${API_URL}/clientes`;
+        const method = id ? 'PUT' : 'POST';
+
+        const res = await fetch(url, {
+            method: method,
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify(dados)
         });
-        closeModal();
-        carregarEmpresas();
+
+        if(res.ok) {
+            closeModal();
+            carregarEmpresas();
+        } else {
+            alert("Erro ao salvar!");
+        }
     };
 
-
-    async function salvarEmpresa(dados) {
-        await fetch(`${API_URL}/clientes`, {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify(dados)
-        });
-        location.reload();
+    function editarEmpresa(id) {
+        const emp = clientesCache.find(c => c.id === id);
+        document.getElementById('edit-id').value = emp.id;
+        document.getElementById('nome').value = emp.nome_fantasia || emp.nome;
+        document.getElementById('cnpj').value = emp.cnpj;
+        document.getElementById('responsavel').value = emp.responsavel;
+        document.getElementById('email').value = emp.email;
+        document.getElementById('telefone').value = emp.telefone;
+        document.getElementById('senha_acesso').value = emp.senha_acesso;
+        document.getElementById('endereco').value = emp.endereco;
+        document.getElementById('modalEmpresa').style.display = 'flex';
     }
 
     async function excluirEmpresa(id) {
-        if(confirm("Excluir unidade?")) { await fetch(`${API_URL}/clientes/${id}`, { method: 'DELETE' }); carregarEmpresas(); }
+        if(confirm("Excluir?")) {
+            await fetch(`${API_URL}/clientes/${id}`, { method: 'DELETE' });
+            carregarEmpresas();
+        }
     }
-    carregarEmpresas();
 </script>
 </body>
 </html>
