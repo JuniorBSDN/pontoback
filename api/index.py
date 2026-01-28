@@ -1,185 +1,152 @@
-from flask import Flask, request, jsonify
-from flask_cors import CORS
-from datetime import datetime
+import os
+import json
 import firebase_admin
 from firebase_admin import credentials, firestore
-import os
+from flask import Flask, request, jsonify
+from flask_cors import CORS
+from datetime import datetime, timedelta, timezone
 
 app = Flask(__name__)
 CORS(app)
 
-# 🔥 Firestore
-if not firebase_admin._apps:
-    cred = credentials.Certificate("firebase.json")
-    firebase_admin.initialize_app(cred)
+# --- CONFIGURAÇÃO FIREBASE ---
+FIREBASE_CONFIG = os.getenv("FIREBASE_CONFIG")
+if FIREBASE_CONFIG:
+    cred = credentials.Certificate(json.loads(FIREBASE_CONFIG))
+else:
+    cred = credentials.Certificate("serviceAccountKey.json")
 
+if not firebase_admin._apps:
+    firebase_admin.initialize_app(cred)
 db = firestore.client()
 
 
-# ================= UTIL =================
-
-def doc_to_dict(doc):
-    d = doc.to_dict()
-    d["id"] = doc.id
-    return d
+def get_agora_br():
+    return datetime.now(timezone(timedelta(hours=-3)))
 
 
-# ================= ADMIN =================
+# --- LOGIN ADMINISTRATIVO (DONO) ---
+@app.route('/api/admin/login', methods=['POST'])
+def login_admin():
+    dados = request.json
+    senha_digitada = str(dados.get('senha', '')).strip()
+    # Puxa ADMIN_PASSWORD da Vercel. Se não existir, usa 'admin123'
+    senha_mestra = os.getenv("ADMIN_PASSWORD", "admin123")
 
-@app.route("/api/admin/login", methods=["POST"])
-def admin_login():
-    data = request.json
-    if data.get("usuario") == "admin" and data.get("senha") == "1234":
-        return jsonify({"ok": True})
-    return jsonify({"erro": "Acesso negado"}), 401
-
-
-# ================= CLIENTES =================
-
-@app.route("/api/clientes", methods=["GET"])
-def listar_clientes():
-    docs = db.collection("clientes").stream()
-    return jsonify([doc_to_dict(doc) for doc in docs])
+    if senha_digitada == senha_mestra:
+        return jsonify({"auth": True}), 200
+    return jsonify({"erro": "Senha incorreta"}), 401
 
 
-@app.route("/api/clientes", methods=["POST"])
-def criar_cliente():
-    data = request.json
-    ref = db.collection("clientes").add(data)
-    return jsonify({"ok": True, "id": ref[1].id})
+# --- GERENCIAMENTO DE CLIENTES ---
+@app.route('/api/clientes', methods=['GET', 'POST'])
+def gerenciar_clientes():
+    if request.method == 'POST':
+        dados = request.json
+        doc_ref = db.collection('clientes').document()
+        dados['id'] = doc_ref.id
+        if 'nome' in dados: dados['nome_fantasia'] = dados['nome']
+        doc_ref.set(dados)
+        return jsonify(dados), 201
+
+    docs = db.collection('clientes').stream()
+    return jsonify([doc.to_dict() for doc in docs])
 
 
-@app.route("/api/clientes/<id>", methods=["PUT"])
-def atualizar_cliente(id):
-    ref = db.collection("clientes").document(id)
-    if not ref.get().exists:
-        return jsonify({"erro": "Cliente não encontrado"}), 404
-    ref.update(request.json)
-    return jsonify({"ok": True})
+@app.route('/api/clientes/<id>', methods=['GET', 'PUT', 'DELETE'])
+def detalhe_cliente(id):
+    doc_ref = db.collection('clientes').document(id)
+    if request.method == 'PUT':
+        dados = request.json
+        dados['id'] = id
+        doc_ref.update(dados)
+        return jsonify({"status": "atualizado"})
+    if request.method == 'DELETE':
+        doc_ref.delete()
+        return jsonify({"status": "excluido"})
+
+    doc = doc_ref.get()
+    return jsonify(doc.to_dict()) if doc.exists else ({'erro': '404'}, 404)
 
 
-@app.route("/api/clientes/<id>", methods=["DELETE"])
-def deletar_cliente(id):
-    ref = db.collection("clientes").document(id)
-    if not ref.get().exists:
-        return jsonify({"erro": "Cliente não encontrado"}), 404
-    ref.delete()
-    return jsonify({"ok": True})
+# --- LOGIN DO TABLET ---
+@app.route('/api/clientes/login-tablet', methods=['POST'])
+def login_unidade():
+    try:
+        dados = request.json
+        cnpj_input = "".join(filter(str.isdigit, str(dados.get('cnpj', ''))))
+        senha_input = str(dados.get('senha', '')).strip()
+
+        docs = db.collection('clientes').stream()
+        for doc in docs:
+            c = doc.to_dict()
+            cnpj_banco = "".join(filter(str.isdigit, str(c.get('cnpj', ''))))
+            senha_banco = str(c.get('senha_acesso', '')).strip()
+
+            if cnpj_banco == cnpj_input and senha_banco == senha_input:
+                return jsonify({"id": doc.id, "nome": c.get('nome_fantasia', c.get('nome'))}), 200
+
+        return jsonify({"erro": "Credenciais inválidas"}), 401
+    except Exception as e:
+        return jsonify({"erro": str(e)}), 500
 
 
-@app.route("/api/clientes/login-tablet", methods=["POST"])
-def login_tablet():
-    data = request.json
-    docs = db.collection("clientes") \
-        .where("cnpj", "==", data["cnpj"]) \
-        .where("senha", "==", data["senha"]) \
-        .stream()
-
-    for doc in docs:
-        d = doc_to_dict(doc)
-        return jsonify(d)
-
-    return jsonify({"erro": "Unidade não encontrada"}), 404
-
-
-@app.route("/api/clientes/ativar-dispositivo", methods=["POST"])
-def ativar_dispositivo():
-    data = request.json
-    db.collection("dispositivos").add({
-        "cliente_id": data["cliente_id"],
-        "machine_id": data["machine_id"],
-        "modelo": data.get("modelo"),
-        "ativado_em": datetime.utcnow()
-    })
-    return jsonify({"ok": True})
-
-
-# ================= FUNCIONÁRIOS =================
-
-@app.route("/api/funcionarios/<cliente_id>", methods=["GET"])
-def listar_funcionarios(cliente_id):
-    docs = db.collection("funcionarios") \
-        .where("cliente_id", "==", cliente_id) \
-        .stream()
-    return jsonify([doc_to_dict(doc) for doc in docs])
-
-
-@app.route("/api/funcionarios", methods=["POST"])
-def criar_funcionario():
-    data = request.json
-    db.collection("funcionarios").document(data["cpf"]).set(data)
-    return jsonify({"ok": True})
-
-
-@app.route("/api/funcionarios/detalhe/<cpf>", methods=["PUT"])
-def atualizar_funcionario(cpf):
-    ref = db.collection("funcionarios").document(cpf)
-    if not ref.get().exists:
-        return jsonify({"erro": "Funcionário não encontrado"}), 404
-    ref.update(request.json)
-    return jsonify({"ok": True})
-
-
-@app.route("/api/funcionarios/detalhe/<cpf>", methods=["DELETE"])
-def deletar_funcionario(cpf):
-    ref = db.collection("funcionarios").document(cpf)
-    if not ref.get().exists:
-        return jsonify({"erro": "Funcionário não encontrado"}), 404
-    ref.delete()
-    return jsonify({"ok": True})
-
-
-# ================= PONTO =================
-
-@app.route("/api/ponto/registrar", methods=["POST"])
+# --- REGISTO DE PONTO ---
+@app.route('/api/ponto/registrar', methods=['POST'])
 def registrar_ponto():
-    data = request.json
-    cpf = data["id_funcionario"]
-    cliente_id = data["id_cliente"]
+    dados = request.json
+    cpf = "".join(filter(str.isdigit, str(dados.get('id_funcionario', ''))))
+    f_ref = db.collection('funcionarios').document(cpf).get()
 
-    agora = datetime.utcnow()
+    if not f_ref.exists:
+        return jsonify({"erro": "CPF não encontrado"}), 404
 
-    pontos_ref = db.collection("pontos")
-    ultimos = pontos_ref \
-        .where("cpf", "==", cpf) \
-        .order_by("data", direction=firestore.Query.DESCENDING) \
-        .limit(1).stream()
+    func = f_ref.to_dict()
+    agora = get_agora_br()
 
-    tipo = "ENTRADA"
-    horas = 0
+    # Ordenação manual no Python para evitar necessidade de índices compostos no Firebase
+    docs = db.collection('pontos').where('id_funcionario', '==', cpf).get()
+    pontos = [p.to_dict() for p in docs]
+    pontos.sort(key=lambda x: x['timestamp_servidor'], reverse=True)
 
-    for p in ultimos:
-        ultimo = p.to_dict()
-        if ultimo["tipo"] == "ENTRADA":
-            tipo = "SAIDA"
-            entrada = ultimo["data"]
-            horas = round((agora - entrada).total_seconds() / 3600, 2)
+    tipo, horas = "ENTRADA", 0
+    if pontos and pontos[0]['tipo'] == "ENTRADA":
+        tipo = "SAÍDA"
+        inicio = datetime.fromisoformat(pontos[0]['timestamp_servidor'])
+        if inicio.tzinfo is None: inicio = inicio.replace(tzinfo=timezone(timedelta(hours=-3)))
+        horas = round((agora - inicio).total_seconds() / 3600, 2)
 
-    novo = {
-        "cpf": cpf,
-        "cliente_id": cliente_id,
-        "data": agora,
-        "tipo": tipo,
-        "machine_id": data.get("machine_id"),
-        "geo": data.get("geo"),
-        "timestamp_local": data.get("timestamp_local"),
-        "horas_trabalhadas": horas
+    novo_ponto = {
+        "id_funcionario": cpf, "funcionario": func['nome'], "id_cliente": dados.get('id_cliente'),
+        "tipo": tipo, "timestamp_servidor": agora.isoformat(), "horas_trabalhadas": horas
     }
-
-    pontos_ref.add(novo)
-
-    return jsonify({
-        "ok": True,
-        "tipo": tipo,
-        "horas": horas,
-        "funcionario": cpf
-    })
+    db.collection('pontos').add(novo_ponto)
+    return jsonify({"tipo": tipo, "funcionario": func['nome'], "horas": horas})
 
 
-@app.route("/api/ponto/funcionario/<cpf>", methods=["GET"])
-def relatorio_funcionario(cpf):
-    docs = db.collection("pontos") \
-        .where("cpf", "==", cpf) \
-        .stream()
+# --- FUNCIONÁRIOS ---
+@app.route('/api/funcionarios', methods=['POST'])
+def criar_func():
+    dados = request.json
+    cpf = "".join(filter(str.isdigit, str(dados['cpf'])))
+    dados['cpf'] = cpf
+    db.collection('funcionarios').document(cpf).set(dados)
+    return jsonify(dados), 201
 
-    return jsonify([doc_to_dict(doc) for doc in docs])
+
+@app.route('/api/funcionarios/<cliente_id>', methods=['GET'])
+def listar_funcs(cliente_id):
+    docs = db.collection('funcionarios').where('cliente_id', '==', cliente_id).stream()
+    return jsonify([doc.to_dict() for doc in docs])
+
+
+@app.route('/api/ponto/funcionario/<cpf>', methods=['GET'])
+def relatorio(cpf):
+    docs = db.collection('pontos').where('id_funcionario', '==', cpf).get()
+    lista = [d.to_dict() for d in docs]
+    lista.sort(key=lambda x: x['timestamp_servidor'])
+    return jsonify(lista)
+
+
+if __name__ == '__main__':
+    app.run(debug=True)
