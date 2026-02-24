@@ -21,10 +21,11 @@
         .btn-edit { background: none; border: none; color: var(--primary); cursor: pointer; margin-right: 10px; font-size: 1.1rem; }
         .btn-del { background: none; border: none; color: var(--danger); cursor: pointer; font-size: 1.1rem; }
         .modal { display:none; position:fixed; inset:0; background:rgba(15, 23, 42, 0.7); align-items:center; justify-content:center; z-index: 1000; padding: 20px; backdrop-filter: blur(4px); }
-        .modal-content { background:white; padding:2rem; border-radius:16px; width:100%; max-width:700px; max-height: 90vh; overflow-y: auto; position: relative; }
-        input, select { width: 100%; padding: 12px; margin: 8px 0; border: 1px solid var(--border); border-radius: 8px; font-size: 1rem; }
+        .modal-content { background:white; padding:2rem; border-radius:16px; width:100%; max-width:700px; max-height: 90vh; overflow-y: auto; position: relative; text-align: center; }
+        input, select { width: 100%; padding: 12px; margin: 8px 0; border: 1px solid var(--border); border-radius: 8px; font-size: 1rem; text-align: left; }
         .login-screen { position: fixed; inset: 0; background: var(--sidebar-bg); display: flex; align-items: center; justify-content: center; z-index: 5000; }
-        #resumo-horas-box { background: #f8fafc; padding: 1.5rem; border-radius: 12px; margin-bottom: 1.5rem; border: 1px solid var(--border); }
+        #resumo-horas-box { background: #f8fafc; padding: 1.5rem; border-radius: 12px; margin-bottom: 1.5rem; border: 1px solid var(--border); text-align: left; }
+        #qrcode-container { display: flex; justify-content: center; margin: 20px 0; padding: 10px; background: white; }
     </style>
 </head>
 <body>
@@ -67,7 +68,7 @@
 
 <div id="modalFunc" class="modal">
     <div class="modal-content">
-        <h3 id="titulo-modal-func">Cadastrar Funcionário</h3>
+        <h3 id="titulo-modal-func" style="text-align: left; margin-bottom: 15px;">Cadastrar Funcionário</h3>
         <input type="text" id="f-nome" placeholder="Nome Completo">
         <input type="text" id="f-cpf" placeholder="CPF (apenas números)">
         <input type="text" id="f-setor" placeholder="Setor">
@@ -77,12 +78,12 @@
             <option value="PJ">PJ</option>
         </select>
         <button class="btn" style="width:100%; margin-top:1rem;" onclick="salvarFuncionario()">Salvar</button>
-        <button onclick="fecharModalCadastro()" style="width:100%; background:none; border:none; margin-top:10px; cursor:pointer;">Cancelar</button>
+        <button onclick="fecharModalCadastro()" style="width:100%; background:none; border:none; margin-top:10px; cursor:pointer; color: #64748b;">Cancelar</button>
     </div>
 </div>
 
 <div id="modalRelatorio" class="modal">
-    <div class="modal-content" style="max-width: 800px;">
+    <div class="modal-content" style="max-width: 800px; text-align: left;">
         <h2 id="rel-nome-func">Relatório</h2>
         <div id="resumo-horas-box">
             Total: <strong id="total-horas-acumuladas">0.00h</strong> | Marcações: <strong id="qtd-marcacoes">0</strong>
@@ -92,6 +93,17 @@
             <tbody id="lista-pontos-func"></tbody>
         </table>
         <button class="btn" style="margin-top:1rem;" onclick="document.getElementById('modalRelatorio').style.display='none'">Fechar</button>
+    </div>
+</div>
+
+<div id="modalQR" class="modal">
+    <div class="modal-content" style="max-width: 400px;">
+        <h3>Cartão de Ponto QR</h3>
+        <p id="qr-nome-func" style="margin-top: 10px; font-weight: bold; color: var(--primary);"></p>
+        <div id="qrcode-container"></div>
+        <p style="font-size: 0.8rem; color: #64748b; margin-bottom: 20px;">Apresente este código ao tablet para registrar o ponto.</p>
+        <button class="btn" style="width: 100%;" onclick="document.getElementById('modalQR').style.display='none'">Fechar</button>
+        <button class="btn" style="width: 100%; margin-top: 10px; background: #64748b;" onclick="window.print()">Imprimir</button>
     </div>
 </div>
 
@@ -113,7 +125,7 @@
 
     async function fazerLogin() {
         const cnpjRaw = document.getElementById('l-cnpj').value;
-        const cnpj = cnpjRaw.replace(/\D/g, ''); // Limpa CNPJ para o login
+        const cnpj = cnpjRaw.replace(/\D/g, ''); 
         const senha = document.getElementById('l-senha').value;
 
         const res = await fetch(`${API_URL}/clientes/login-tablet`, {
@@ -134,7 +146,6 @@
         if (!config || !config.id) return;
 
         try {
-            // Rota sincronizada com o backend corrigido
             const res = await fetch(`${API_URL}/funcionarios/unidade/${config.id}`);
             const lista = await res.json();
             funcionariosAtuais = lista;
@@ -145,14 +156,34 @@
                     <td>${f.setor || 'Geral'}<br><small>${f.tipo_contrato || 'CLT'}</small></td>
                     <td>R$ ${parseFloat(f.salario_base || 0).toFixed(2)}</td>
                     <td>
-                        <button onclick="prepararEdicao('${f.cpf}')" class="btn-edit"><i class="fas fa-edit"></i></button>
-                        <button onclick="removerFuncionario('${f.cpf}')" class="btn-del"><i class="fas fa-trash"></i></button>
-                        <button onclick="verRelatorio('${f.cpf}', '${f.nome}')" style="color:green; background:none; border:none; cursor:pointer;"><i class="fas fa-file-invoice"></i></button>
+                        <button onclick="prepararEdicao('${f.cpf}')" class="btn-edit" title="Editar"><i class="fas fa-edit"></i></button>
+                        <button onclick="removerFuncionario('${f.cpf}')" class="btn-del" title="Excluir"><i class="fas fa-trash"></i></button>
+                        <button onclick="verRelatorio('${f.cpf}', '${f.nome}')" style="color:green; background:none; border:none; cursor:pointer; font-size: 1.1rem; margin-right: 10px;" title="Relatório"><i class="fas fa-file-invoice"></i></button>
+                        <button onclick="abrirQR('${f.cpf}', '${f.nome}')" style="color:black; background:none; border:none; cursor:pointer; font-size: 1.1rem;" title="Gerar QR Code"><i class="fas fa-qrcode"></i></button>
                     </td>
                 </tr>
             `).join('');
-            if(lista.length === 0) corpo.innerHTML = "<tr><td colspan='4'>Nenhum funcionário cadastrado.</td></tr>";
+            if(lista.length === 0) corpo.innerHTML = "<tr><td colspan='4' style='text-align:center;'>Nenhum funcionário cadastrado.</td></tr>";
         } catch (e) { console.error(e); }
+    }
+
+    // FUNÇÃO QR CODE RESTAURADA
+    function abrirQR(cpf, nome) {
+        document.getElementById('qr-nome-func').innerText = nome;
+        const container = document.getElementById('qrcode-container');
+        container.innerHTML = ""; // Limpa QR anterior
+        
+        // Gera o QR Code com o CPF do funcionário
+        new QRCode(container, {
+            text: cpf,
+            width: 200,
+            height: 200,
+            colorDark : "#000000",
+            colorLight : "#ffffff",
+            correctLevel : QRCode.CorrectLevel.H
+        });
+        
+        document.getElementById('modalQR').style.display = 'flex';
     }
 
     function prepararEdicao(cpf) {
@@ -160,7 +191,7 @@
         if(!f) return;
         document.getElementById('f-nome').value = f.nome;
         document.getElementById('f-cpf').value = f.cpf;
-        document.getElementById('f-cpf').disabled = true; // Não permite mudar CPF na edição
+        document.getElementById('f-cpf').disabled = true;
         document.getElementById('f-setor').value = f.setor;
         document.getElementById('f-salario').value = f.salario_base;
         document.getElementById('f-tipo').value = f.tipo_contrato;
@@ -200,34 +231,41 @@
     }
 
     async function removerFuncionario(cpf) {
-        if(!confirm("Excluir este funcionário?")) return;
+        if(!confirm("Deseja realmente excluir este funcionário?")) return;
         const cpfLimpo = cpf.replace(/\D/g, "");
         try {
             const res = await fetch(`${API_URL}/funcionarios/${cpfLimpo}`, { method: 'DELETE' });
-            if(res.ok) carregarFuncionarios();
+            if(res.ok) {
+                alert("Funcionário removido!");
+                carregarFuncionarios();
+            }
         } catch (e) { alert("Erro ao excluir."); }
     }
 
     async function verRelatorio(cpf, nome) {
         document.getElementById('rel-nome-func').innerText = nome;
         document.getElementById('modalRelatorio').style.display = 'flex';
-        const res = await fetch(`${API_URL}/ponto/funcionario/${cpf}`);
-        const pontos = await res.json();
-        let total = 0;
-        document.getElementById('lista-pontos-func').innerHTML = pontos.map(p => {
-            if(p.tipo === "SAÍDA") total += (p.horas_trabalhadas || 0);
-            return `<tr><td>${new Date(p.timestamp_servidor).toLocaleString()}</td><td>${p.tipo}</td><td>${p.horas_trabalhadas ? p.horas_trabalhadas.toFixed(2)+'h' : '--'}</td></tr>`;
-        }).join('');
-        document.getElementById('total-horas-acumuladas').innerText = total.toFixed(2) + "h";
-        document.getElementById('qtd-marcacoes').innerText = pontos.length;
+        try {
+            const res = await fetch(`${API_URL}/ponto/funcionario/${cpf}`);
+            const pontos = await res.json();
+            let total = 0;
+            document.getElementById('lista-pontos-func').innerHTML = pontos.map(p => {
+                if(p.tipo === "SAÍDA") total += (p.horas_trabalhadas || 0);
+                return `<tr><td>${new Date(p.timestamp_servidor).toLocaleString()}</td><td>${p.tipo}</td><td>${p.horas_trabalhadas ? p.horas_trabalhadas.toFixed(2)+'h' : '--'}</td></tr>`;
+            }).join('');
+            document.getElementById('total-horas-acumuladas').innerText = total.toFixed(2) + "h";
+            document.getElementById('qtd-marcacoes').innerText = pontos.length;
+        } catch(e) { alert("Erro ao carregar relatório."); }
     }
 
     function abrirModalCadastro() {
         document.getElementById('f-cpf').disabled = false;
-        document.getElementById('modalFunc').style.display = 'flex';
-        document.getElementById('titulo-modal-func').innerText = "Novo Funcionário";
         document.getElementById('f-nome').value = "";
         document.getElementById('f-cpf').value = "";
+        document.getElementById('f-setor').value = "";
+        document.getElementById('f-salario').value = "";
+        document.getElementById('modalFunc').style.display = 'flex';
+        document.getElementById('titulo-modal-func').innerText = "Novo Funcionário";
     }
     function fecharModalCadastro() { document.getElementById('modalFunc').style.display = 'none'; }
     function sair() { localStorage.clear(); location.reload(); }
