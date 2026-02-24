@@ -2,7 +2,7 @@
 <html lang="pt-br">
 <head>
     <meta charset="UTF-8">
-    <title>PontoBack | Gestão Profissional</title>
+    <title>PontoBack | Gestão Administrativa</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
@@ -17,63 +17,42 @@
         .card { background: white; border-radius: 12px; border: 1px solid var(--border); padding: 1.5rem; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
         table { width: 100%; border-collapse: collapse; margin-top: 1rem; }
         th { background: #f1f5f9; padding: 1rem; text-align: left; font-size: 0.75rem; color: #64748b; text-transform: uppercase; border-bottom: 2px solid var(--border); }
-        td { padding: 1rem; border-bottom: 1px solid var(--border); font-size: 0.9rem; }
+        td { padding: 1rem; border-bottom: 1px solid var(--border); font-size: 0.9rem; vertical-align: middle; }
 
-        .btn { background: var(--primary); color: white; border: none; padding: 10px 16px; border-radius: 8px; cursor: pointer; font-weight: 600; display: inline-flex; align-items: center; gap: 8px; }
-        
+        .btn { background: var(--primary); color: white; border: none; padding: 10px 16px; border-radius: 8px; cursor: pointer; font-weight: 600; display: inline-flex; align-items: center; gap: 8px; transition: 0.2s; text-decoration: none; }
+        .btn-icon { background: none; border: none; cursor: pointer; font-size: 1.1rem; padding: 5px; transition: 0.2s; }
+        .btn-icon:hover { transform: scale(1.1); }
+
         .modal { display:none; position:fixed; inset:0; background:rgba(15, 23, 42, 0.7); align-items:center; justify-content:center; z-index: 1000; padding: 20px; backdrop-filter: blur(4px); }
-        .modal-content { background:white; padding:2rem; border-radius:16px; width:100%; max-width:800px; max-height: 90vh; overflow-y: auto; }
-        input, select { width: 100%; padding: 12px; margin: 8px 0; border: 1px solid var(--border); border-radius: 8px; }
+        .modal-content { background:white; padding:2rem; border-radius:16px; width:100%; max-width:800px; max-height: 90vh; overflow-y: auto; position: relative; }
+        input, select { width: 100%; padding: 12px; margin: 8px 0; border: 1px solid var(--border); border-radius: 8px; font-size: 1rem; }
 
-        #resumo-horas-box { background: #f1f5f9; padding: 1rem; border-radius: 10px; margin-bottom: 1rem; border: 1px solid var(--border); }
+        #resumo-horas-box { background: #f1f5f9; padding: 1.5rem; border-radius: 12px; margin-bottom: 1.5rem; border: 1px solid var(--border); }
 
-        /* ==========================================
-           CORREÇÃO CRÍTICA: IMPRESSÃO (PDF/QR)
-           ========================================== */
+        /* REGRAS DE IMPRESSÃO - PDF E QR CODE */
         @media print {
-            /* Esconde absolutamente tudo */
             body * { visibility: hidden !important; }
-            .no-print, .sidebar, .main, .btn, input, select, .login-screen { display: none !important; }
+            .no-print, .sidebar, .main, .btn, .no-print *, input, select { display: none !important; }
 
-            /* Mostra apenas o modal que está com display: flex ou block no momento */
-            .modal[style*="display: flex"], 
-            .modal[style*="display: block"],
-            .modal[style*="display: flex"] *, 
-            .modal[style*="display: block"] * { 
-                visibility: visible !important; 
-            }
-
-            .modal[style*="display: flex"], 
-            .modal[style*="display: block"] {
-                position: absolute !important;
-                left: 0 !important;
-                top: 0 !important;
-                width: 100% !important;
-                background: white !important;
-                display: block !important;
-            }
-
-            .modal-content {
-                box-shadow: none !important;
-                border: none !important;
-                width: 100% !important;
-                max-width: 100% !important;
-                padding: 0 !important;
-            }
-
+            /* Exibe apenas o modal que estiver aberto no momento */
+            .modal[style*="display: flex"], .modal[style*="display: flex"] * { visibility: visible !important; }
+            .modal[style*="display: flex"] { position: absolute !important; left: 0 !important; top: 0 !important; width: 100% !important; display: block !important; background: white !important; }
+            
+            .modal-content { box-shadow: none !important; border: none !important; width: 100% !important; max-width: 100% !important; padding: 0 !important; }
             table { width: 100% !important; border: 1px solid #000 !important; border-collapse: collapse !important; }
-            th, td { border: 1px solid #000 !important; padding: 8px !important; color: black !important; }
+            th, td { border: 1px solid #000 !important; padding: 10px !important; color: #000 !important; }
+            th { background-color: #eee !important; -webkit-print-color-adjust: exact; }
         }
     </style>
 </head>
 <body>
 
-<div id="login-area" class="login-screen no-print">
+<div id="login-area" class="login-screen no-print" style="position: fixed; inset: 0; background: var(--sidebar-bg); display: flex; align-items: center; justify-content: center; z-index: 5000;">
     <div style="background:#1e293b; padding:2.5rem; border-radius:16px; width:380px; text-align:center;">
-        <h2 style="color:white; margin-bottom:1.5rem;">Gestor PontoBack</h2>
+        <h2 style="color:white; margin-bottom:1.5rem;">Painel Gestor PontoBack</h2>
         <input type="text" id="l-cnpj" placeholder="CNPJ da Unidade">
-        <input type="password" id="l-senha" placeholder="Senha do Painel">
-        <button class="btn" style="width:100%; margin-top: 1rem;" onclick="fazerLogin()">Entrar</button>
+        <input type="password" id="l-senha" placeholder="Senha Administrativa">
+        <button class="btn" style="width:100%; margin-top: 1rem;" onclick="fazerLogin()">Entrar no Sistema</button>
     </div>
 </div>
 
@@ -86,7 +65,7 @@
 
 <main class="main">
     <header style="display:flex; justify-content:space-between; margin-bottom:2.5rem;" class="no-print">
-        <h1>Funcionários</h1>
+        <h1>Gestão de Funcionários</h1>
         <button class="btn" onclick="abrirModalCadastro()"><i class="fas fa-plus"></i> Novo Funcionário</button>
     </header>
 
@@ -95,9 +74,9 @@
             <thead>
                 <tr>
                     <th>Nome / CPF</th>
-                    <th>Setor</th>
-                    <th>Acesso</th>
-                    <th>Salário</th>
+                    <th>Setor / Tipo</th>
+                    <th>Acesso (Login/Senha)</th>
+                    <th>Salário Base</th>
                     <th style="text-align: right;">Ações</th>
                 </tr>
             </thead>
@@ -106,24 +85,46 @@
     </div>
 </main>
 
+<div id="modalFunc" class="modal no-print">
+    <div class="modal-content" style="max-width: 500px;">
+        <h3 id="titulo-modal-func">Funcionário</h3>
+        <input type="text" id="f-nome" placeholder="Nome Completo">
+        <input type="text" id="f-cpf" placeholder="CPF (Apenas números)">
+        <input type="text" id="f-senha" placeholder="Senha de Acesso do Funcionário">
+        <input type="text" id="f-setor" placeholder="Setor">
+        <input type="number" id="f-salario" placeholder="Salário Base (R$)">
+        <select id="f-tipo">
+            <option value="CLT">CLT</option>
+            <option value="PJ">PJ</option>
+        </select>
+        <button class="btn" style="width:100%; margin-top:1rem;" onclick="salvarFuncionario()">Salvar Dados</button>
+        <button onclick="fecharModais()" style="width:100%; background:none; border:none; margin-top:10px; cursor:pointer; color:#64748b;">Cancelar</button>
+    </div>
+</div>
+
 <div id="modalRelatorio" class="modal">
     <div class="modal-content">
         <div class="no-print" style="display:flex; justify-content:space-between; margin-bottom:15px;">
             <h2>Folha de Ponto Individual</h2>
             <button class="btn" style="background:#64748b;" onclick="fecharModais()">Fechar</button>
         </div>
+
         <div class="no-print" style="background:#f1f5f9; padding:15px; border-radius:8px; margin-bottom:15px; display:flex; gap:10px; align-items:flex-end;">
-            <div style="flex:1"><label style="font-size:11px; font-weight:bold;">DE:</label><input type="date" id="filtro-inicio"></div>
-            <div style="flex:1"><label style="font-size:11px; font-weight:bold;">ATÉ:</label><input type="date" id="filtro-fim"></div>
+            <div style="flex:1"><label style="font-size:11px; font-weight:bold;">DATA INÍCIO:</label><input type="date" id="filtro-inicio"></div>
+            <div style="flex:1"><label style="font-size:11px; font-weight:bold;">DATA FIM:</label><input type="date" id="filtro-fim"></div>
             <button class="btn" onclick="aplicarFiltro()">Filtrar</button>
             <button class="btn" style="background:var(--success);" onclick="window.print()">Gerar PDF</button>
         </div>
+
         <div id="resumo-horas-box">
-            Funcionário: <strong id="rel-nome-display">---</strong> | 
-            Total: <strong id="total-horas-acumuladas">0.00h</strong>
+            Funcionário: <strong id="rel-nome-display">---</strong><br>
+            Total de Horas no Período: <strong id="total-horas-acumuladas">0.00h</strong>
         </div>
+
         <table>
-            <thead><tr><th>Data</th><th>Hora</th><th>Tipo</th><th>Duração</th></tr></thead>
+            <thead>
+                <tr><th>Data</th><th>Hora</th><th>Tipo</th><th>Duração</th></tr>
+            </thead>
             <tbody id="lista-pontos-func"></tbody>
         </table>
     </div>
@@ -131,27 +132,13 @@
 
 <div id="modalQR" class="modal">
     <div class="modal-content" style="max-width: 400px; text-align: center;">
-        <h3 class="no-print">QR Code de Ponto</h3>
-        <p id="qr-nome-func" style="margin: 15px 0; font-weight: bold; font-size: 1.1rem;"></p>
-        <div id="qrcode-container" style="display: inline-block;"></div>
+        <h3 class="no-print">Cartão QR Code</h3>
+        <p id="qr-nome-func" style="margin: 15px 0; font-weight: bold; color: var(--primary); font-size: 1.2rem;"></p>
+        <div id="qrcode-container" style="display: inline-block; padding: 10px; border: 1px solid #eee;"></div>
         <div class="no-print" style="margin-top: 20px;">
-            <button class="btn" style="width:100%;" onclick="window.print()">Imprimir QR</button>
-            <button class="btn" style="width:100%; margin-top:10px; background:none; color:#64748b;" onclick="fecharModais()">Voltar</button>
+            <button class="btn" style="width:100%;" onclick="window.print()">Imprimir Cartão</button>
+            <button class="btn" style="width:100%; margin-top:10px; background:none; color:#64748b;" onclick="fecharModais()">Fechar</button>
         </div>
-    </div>
-</div>
-
-<div id="modalFunc" class="modal no-print">
-    <div class="modal-content" style="max-width: 500px;">
-        <h3 id="titulo-modal-func">Funcionário</h3>
-        <input type="text" id="f-nome" placeholder="Nome Completo">
-        <input type="text" id="f-cpf" placeholder="CPF (Login)">
-        <input type="text" id="f-senha" placeholder="Senha">
-        <input type="text" id="f-setor" placeholder="Setor">
-        <input type="number" id="f-salario" placeholder="Salário">
-        <select id="f-tipo"><option value="CLT">CLT</option><option value="PJ">PJ</option></select>
-        <button class="btn" style="width:100%; margin-top:1rem;" onclick="salvarFuncionario()">Salvar</button>
-        <button onclick="fecharModais()" style="width:100%; background:none; border:none; margin-top:10px; cursor:pointer;">Cancelar</button>
     </div>
 </div>
 
@@ -181,65 +168,28 @@
             const dados = await res.json();
             localStorage.setItem("config_gestor", JSON.stringify({ id: dados.id, nome: dados.nome }));
             location.reload();
-        } else { alert("Erro de login."); }
+        } else { alert("Acesso não autorizado. Verifique os dados."); }
     }
 
     async function carregarFuncionarios() {
-        const res = await fetch(`${API_URL}/funcionarios/unidade/${config.id}`);
-        funcionariosAtuais = await res.json();
-        document.getElementById('lista-func').innerHTML = funcionariosAtuais.map(f => `
-            <tr>
-                <td><strong>${f.nome}</strong><br><small>${f.cpf}</small></td>
-                <td>${f.setor || '-'}</td>
-                <td><small>Senha: ${f.senha || '---'}</small></td>
-                <td>R$ ${parseFloat(f.salario_base || 0).toFixed(2)}</td>
-                <td style="text-align: right;">
-                    <button class="btn" style="background:none; color:blue; padding:5px" onclick="prepararEdicao('${f.cpf}')"><i class="fas fa-edit"></i></button>
-                    <button class="btn" style="background:none; color:green; padding:5px" onclick="verRelatorio('${f.cpf}', '${f.nome}')"><i class="fas fa-file-invoice"></i></button>
-                    <button class="btn" style="background:none; color:black; padding:5px" onclick="abrirQR('${f.cpf}', '${f.nome}')"><i class="fas fa-qrcode"></i></button>
-                    <button class="btn" style="background:none; color:red; padding:5px" onclick="removerFuncionario('${f.cpf}')"><i class="fas fa-trash"></i></button>
-                </td>
-            </tr>
-        `).join('');
-    }
-
-    function abrirQR(cpf, nome) {
-        fecharModais();
-        document.getElementById('qr-nome-func').innerText = nome;
-        const container = document.getElementById('qrcode-container');
-        container.innerHTML = "";
-        new QRCode(container, { text: cpf, width: 200, height: 200 });
-        document.getElementById('modalQR').style.display = 'flex';
-    }
-
-    async function verRelatorio(cpf, nome) {
-        fecharModais();
-        document.getElementById('rel-nome-display').innerText = nome;
-        document.getElementById('modalRelatorio').style.display = 'flex';
-        const res = await fetch(`${API_URL}/ponto/funcionario/${cpf}`);
-        pontosCache = await res.json();
-        renderizarTabela(pontosCache);
-    }
-
-    function renderizarTabela(lista) {
-        let total = 0;
-        document.getElementById('lista-pontos-func').innerHTML = lista.map(p => {
-            if(p.tipo === "SAÍDA") total += (p.horas_trabalhadas || 0);
-            const dt = new Date(p.timestamp_servidor);
-            return `<tr><td>${dt.toLocaleDateString()}</td><td>${dt.toLocaleTimeString()}</td><td>${p.tipo}</td><td>${p.horas_trabalhadas ? p.horas_trabalhadas.toFixed(2)+'h' : '--'}</td></tr>`;
-        }).join('');
-        document.getElementById('total-horas-acumuladas').innerText = total.toFixed(2) + "h";
-    }
-
-    function aplicarFiltro() {
-        const ini = document.getElementById('filtro-inicio').value;
-        const fim = document.getElementById('filtro-fim').value;
-        if(!ini || !fim) return alert("Selecione as datas");
-        const filtrados = pontosCache.filter(p => {
-            const dp = new Date(p.timestamp_servidor);
-            return dp >= new Date(ini+"T00:00:00") && dp <= new Date(fim+"T23:59:59");
-        });
-        renderizarTabela(filtrados);
+        try {
+            const res = await fetch(`${API_URL}/funcionarios/unidade/${config.id}`);
+            funcionariosAtuais = await res.json();
+            document.getElementById('lista-func').innerHTML = funcionariosAtuais.map(f => `
+                <tr>
+                    <td><strong>${f.nome}</strong><br><small>${f.cpf}</small></td>
+                    <td>${f.setor || 'Geral'}<br><small>${f.tipo_contrato || 'CLT'}</small></td>
+                    <td><small>Login: <b>${f.cpf}</b><br>Senha: <b>${f.senha || '---'}</b></small></td>
+                    <td>R$ ${parseFloat(f.salario_base || 0).toFixed(2)}</td>
+                    <td style="text-align: right;">
+                        <button onclick="prepararEdicao('${f.cpf}')" class="btn-icon" style="color:var(--primary)" title="Editar"><i class="fas fa-edit"></i></button>
+                        <button onclick="verRelatorio('${f.cpf}', '${f.nome}')" class="btn-icon" style="color:var(--success)" title="Relatório"><i class="fas fa-file-invoice"></i></button>
+                        <button onclick="abrirQR('${f.cpf}', '${f.nome}')" class="btn-icon" style="color:#000" title="Gerar QR"><i class="fas fa-qrcode"></i></button>
+                        <button onclick="removerFuncionario('${f.cpf}')" class="btn-icon" style="color:var(--danger)" title="Excluir"><i class="fas fa-trash"></i></button>
+                    </td>
+                </tr>
+            `).join('');
+        } catch (e) { console.error("Erro ao listar:", e); }
     }
 
     async function salvarFuncionario() {
@@ -254,16 +204,17 @@
             tipo_contrato: document.getElementById('f-tipo').value,
             cliente_id: config.id
         };
-        await fetch(isEdit ? `${API_URL}/funcionarios/${cpf}` : `${API_URL}/funcionarios`, {
+
+        const res = await fetch(isEdit ? `${API_URL}/funcionarios/${cpf}` : `${API_URL}/funcionarios`, {
             method: isEdit ? 'PUT' : 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify(dados)
         });
-        fecharModais(); carregarFuncionarios();
+
+        if(res.ok) { fecharModais(); carregarFuncionarios(); }
     }
 
     function prepararEdicao(cpf) {
-        fecharModais();
         const f = funcionariosAtuais.find(x => x.cpf === cpf);
         document.getElementById('f-nome').value = f.nome;
         document.getElementById('f-cpf').value = f.cpf;
@@ -272,27 +223,70 @@
         document.getElementById('f-setor').value = f.setor;
         document.getElementById('f-salario').value = f.salario_base;
         document.getElementById('f-tipo').value = f.tipo_contrato;
+        document.getElementById('titulo-modal-func').innerText = "Editar Funcionário";
         document.getElementById('modalFunc').style.display = 'flex';
     }
 
+    async function verRelatorio(cpf, nome) {
+        document.getElementById('rel-nome-display').innerText = nome;
+        document.getElementById('modalRelatorio').style.display = 'flex';
+        const res = await fetch(`${API_URL}/ponto/funcionario/${cpf}`);
+        pontosCache = await res.json();
+        renderizarTabelaPontos(pontosCache);
+    }
+
+    function renderizarTabelaPontos(lista) {
+        let total = 0;
+        document.getElementById('lista-pontos-func').innerHTML = lista.map(p => {
+            if(p.tipo === "SAÍDA") total += (p.horas_trabalhadas || 0);
+            const dt = new Date(p.timestamp_servidor);
+            return `<tr>
+                <td>${dt.toLocaleDateString()}</td>
+                <td>${dt.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</td>
+                <td style="color:${p.tipo==='ENTRADA'?'green':'blue'}"><b>${p.tipo}</b></td>
+                <td>${p.horas_trabalhadas ? p.horas_trabalhadas.toFixed(2)+'h' : '--'}</td>
+            </tr>`;
+        }).join('');
+        document.getElementById('total-horas-acumuladas').innerText = total.toFixed(2) + "h";
+    }
+
+    function aplicarFiltro() {
+        const ini = document.getElementById('filtro-inicio').value;
+        const fim = document.getElementById('filtro-fim').value;
+        if(!ini || !fim) return alert("Defina o período");
+        const filtrados = pontosCache.filter(p => {
+            const d = new Date(p.timestamp_servidor);
+            return d >= new Date(ini+"T00:00:00") && d <= new Date(fim+"T23:59:59");
+        });
+        renderizarTabelaPontos(filtrados);
+    }
+
+    function abrirQR(cpf, nome) {
+        document.getElementById('qr-nome-func').innerText = nome;
+        const container = document.getElementById('qrcode-container');
+        container.innerHTML = "";
+        new QRCode(container, { text: cpf, width: 220, height: 220 });
+        document.getElementById('modalQR').style.display = 'flex';
+    }
+
     async function removerFuncionario(cpf) {
-        if(confirm("Deseja excluir?")) {
+        if(confirm("Confirma a exclusão definitiva?")) {
             await fetch(`${API_URL}/funcionarios/${cpf}`, { method: 'DELETE' });
             carregarFuncionarios();
         }
     }
 
     function abrirModalCadastro() {
-        fecharModais();
         document.getElementById('f-cpf').disabled = false;
         document.querySelectorAll('#modalFunc input').forEach(i => i.value = "");
+        document.getElementById('titulo-modal-func').innerText = "Novo Funcionário";
         document.getElementById('modalFunc').style.display = 'flex';
     }
 
-    function fecharModais() {
-        document.querySelectorAll('.modal').forEach(m => m.style.display = 'none');
+    function fecharModais() { 
+        document.querySelectorAll('.modal').forEach(m => m.style.display = 'none'); 
     }
-
+    
     function sair() { localStorage.clear(); location.reload(); }
     iniciar();
 </script>
