@@ -100,21 +100,26 @@
 <div id="modalRelatorio" class="modal">
     <div class="modal-content">
         <div class="no-print" style="display:flex; justify-content:space-between; align-items:center;">
-            <h2 id="rel-nome-func-header">Folha de Ponto</h2>
+            <h2 id="rel-nome-func">Folha de Ponto</h2>
             <button class="btn" style="background:#64748b;" onclick="document.getElementById('modalRelatorio').style.display='none'">Fechar</button>
         </div>
+
         <div class="no-print" style="background:#f1f5f9; padding:15px; border-radius:12px; margin: 20px 0; display:flex; gap:10px; align-items:flex-end;">
-            <div style="flex:1"><label style="font-size:12px; font-weight:bold;">Início:</label><input type="date" id="filtro-inicio"></div>
-            <div style="flex:1"><label style="font-size:12px; font-weight:bold;">Fim:</label><input type="date" id="filtro-fim"></div>
-            <button class="btn" onclick="aplicarFiltro()">Filtrar</button>
-            <button class="btn" style="background:var(--success);" onclick="window.print()">Gerar PDF</button>
+            <div style="flex:1"><label style="font-size:12px; font-weight:bold;">Data Início:</label><input type="date" id="filtro-inicio"></div>
+            <div style="flex:1"><label style="font-size:12px; font-weight:bold;">Data Fim:</label><input type="date" id="filtro-fim"></div>
+            <button class="btn" onclick="aplicarFiltro()"><i class="fas fa-filter"></i> Filtrar</button>
+            <button class="btn" style="background:var(--success);" onclick="window.print()"><i class="fas fa-file-pdf"></i> Imprimir PDF</button>
         </div>
+
         <div id="resumo-horas-box">
             <p>Funcionário: <strong id="rel-nome-display">---</strong></p>
-            Total Horas: <strong id="total-horas-acumuladas">0.00h</strong> | Registros: <strong id="qtd-marcacoes">0</strong>
+            Total Acumulado: <strong id="total-horas-acumuladas">0.00h</strong> | Registros: <strong id="qtd-marcacoes">0</strong>
         </div>
+
         <table>
-            <thead><tr><th>Data</th><th>Hora</th><th>Tipo</th><th>Duração</th></tr></thead>
+            <thead>
+                <tr><th>Data</th><th>Hora</th><th>Tipo</th><th>Duração</th></tr>
+            </thead>
             <tbody id="lista-pontos-func"></tbody>
         </table>
     </div>
