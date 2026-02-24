@@ -31,12 +31,30 @@
 
         /* CORREÇÃO DO PDF: Força a exibição apenas do conteúdo do modal durante a impressão */
         @media print {
-            body { background: white !important; }
-            .no-print, .sidebar, .main, .btn, input, select, header { display: none !important; }
-            .modal { position: absolute !important; display: block !important; background: white !important; inset: 0 !important; }
-            .modal-content { width: 100% !important; max-width: 100% !important; box-shadow: none !important; border: none !important; padding: 0 !important; }
+            body * { visibility: hidden !important; }
+            .no-print, .sidebar, .btn, input, select, header { display: none !important; }
+            
+            #modalRelatorio, #modalRelatorio *, #modalQR, #modalQR * { visibility: visible !important; }
+            
+            #modalRelatorio, #modalQR { 
+                position: absolute !important; 
+                left: 0 !important; 
+                top: 0 !important; 
+                width: 100% !important; 
+                display: block !important;
+                background: white !important;
+            }
+            .modal-content { 
+                max-height: none !important; 
+                overflow: visible !important; 
+                box-shadow: none !important; 
+                border: none !important;
+                width: 100% !important;
+                padding: 0 !important;
+            }
             table { width: 100% !important; border: 1px solid #000 !important; }
-            th, td { border: 1px solid #000 !important; color: black !important; padding: 8px !important; }
+            th, td { border: 1px solid #000 !important; color: #000 !important; padding: 8px !important; }
+            #resumo-horas-box { border: 1px solid #000 !important; background: white !important; }
         }
     </style>
 </head>
