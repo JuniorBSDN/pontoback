@@ -2,7 +2,7 @@
 <html lang="pt-br">
 <head>
     <meta charset="UTF-8">
-    <title>PontoBack | Gestão de Funcionários</title>
+    <title>PontoBack | Painel do Gestor</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
@@ -27,9 +27,10 @@
         
         input, select { width: 100%; padding: 12px; margin: 8px 0; border: 1px solid var(--border); border-radius: 8px; font-size: 1rem; }
         .login-screen { position: fixed; inset: 0; background: var(--sidebar-bg); display: flex; align-items: center; justify-content: center; z-index: 5000; }
+        
         #resumo-horas-box { background: #f8fafc; padding: 1.5rem; border-radius: 12px; margin-bottom: 1.5rem; border: 1px solid var(--border); }
 
-        /* REGRAS DE IMPRESSÃO (PDF) */
+        /* REGRAS DE IMPRESSÃO - CORREÇÃO PARA PDF NÃO SAIR EM BRANCO */
         @media print {
             body * { visibility: hidden !important; }
             .no-print, .sidebar, .btn, input, select, header { display: none !important; }
@@ -54,7 +55,7 @@
             }
             table { width: 100% !important; border: 1px solid #000 !important; }
             th, td { border: 1px solid #000 !important; color: #000 !important; padding: 8px !important; }
-            #resumo-horas-box { border: 1px solid #000 !important; background: white !important; }
+            #resumo-horas-box { border: 1px solid #000 !important; background: white !important; color: #000 !important; }
         }
     </style>
 </head>
@@ -87,7 +88,7 @@
             <thead>
                 <tr>
                     <th>Nome / CPF</th>
-                    <th>Setor</th>
+                    <th>Setor / Tipo</th>
                     <th>Ações</th>
                 </tr>
             </thead>
@@ -104,15 +105,15 @@
         </div>
 
         <div class="no-print" style="background:#f1f5f9; padding:15px; border-radius:12px; margin: 20px 0; display:flex; gap:10px; align-items:flex-end;">
-            <div style="flex:1"><label style="font-size:12px; font-weight:bold;">Data Início:</label><input type="date" id="filtro-inicio"></div>
-            <div style="flex:1"><label style="font-size:12px; font-weight:bold;">Data Fim:</label><input type="date" id="filtro-fim"></div>
+            <div style="flex:1"><label style="font-size:12px; font-weight:bold;">Início:</label><input type="date" id="filtro-inicio"></div>
+            <div style="flex:1"><label style="font-size:12px; font-weight:bold;">Fim:</label><input type="date" id="filtro-fim"></div>
             <button class="btn" onclick="aplicarFiltro()"><i class="fas fa-filter"></i> Filtrar</button>
             <button class="btn" style="background:var(--success);" onclick="window.print()"><i class="fas fa-file-pdf"></i> Imprimir PDF</button>
         </div>
 
         <div id="resumo-horas-box">
             <p>Funcionário: <strong id="rel-nome-display">---</strong></p>
-            Total Acumulado: <strong id="total-horas-acumuladas">0.00h</strong> | Registros: <strong id="qtd-marcacoes">0</strong>
+            Total no Período: <strong id="total-horas-acumuladas">0.00h</strong> | Registros: <strong id="qtd-marcacoes">0</strong>
         </div>
 
         <table>
@@ -126,12 +127,15 @@
 
 <div id="modalFunc" class="modal no-print">
     <div class="modal-content" style="max-width: 500px;">
-        <h3 id="titulo-modal-func">Funcionário</h3>
+        <h3 id="titulo-modal-func">Cadastrar Funcionário</h3>
         <input type="text" id="f-nome" placeholder="Nome Completo">
         <input type="text" id="f-cpf" placeholder="CPF (apenas números)">
         <input type="text" id="f-setor" placeholder="Setor">
         <input type="number" id="f-salario" placeholder="Salário Base">
-        <select id="f-tipo"><option value="CLT">CLT</option><option value="PJ">PJ</option></select>
+        <select id="f-tipo">
+            <option value="CLT">CLT</option>
+            <option value="PJ">PJ</option>
+        </select>
         <button class="btn" style="width:100%; margin-top:1rem;" onclick="salvarFuncionario()">Salvar</button>
         <button onclick="fecharModalCadastro()" style="width:100%; background:none; border:none; margin-top:10px; cursor:pointer; color:#64748b;">Cancelar</button>
     </div>
@@ -141,7 +145,7 @@
     <div class="modal-content" style="max-width: 400px; text-align: center;">
         <h3>Cartão de Ponto QR</h3>
         <p id="qr-nome-func" style="margin: 15px 0; font-weight: bold; color: var(--primary);"></p>
-        <div id="qrcode-container" style="margin-bottom: 20px;"></div>
+        <div id="qrcode-container" style="display: flex; justify-content: center; margin-bottom: 20px;"></div>
         <button class="btn no-print" style="width:100%;" onclick="document.getElementById('modalQR').style.display='none'">Fechar</button>
         <button class="btn no-print" style="width:100%; margin-top:10px; background:#64748b;" onclick="window.print()">Imprimir QR</button>
     </div>
@@ -174,27 +178,28 @@
                 const dados = await res.json();
                 localStorage.setItem("config_gestor", JSON.stringify({ id: dados.id, nome: dados.nome }));
                 location.reload();
-            } else { alert("Dados de acesso incorretos."); }
-        } catch (e) { alert("Erro ao conectar com o servidor."); }
+            } else { alert("Acesso negado. Verifique CNPJ e Senha."); }
+        } catch (e) { alert("Erro de conexão."); }
     }
 
     async function carregarFuncionarios() {
         const corpo = document.getElementById('lista-func');
-        const res = await fetch(`${API_URL}/funcionarios/unidade/${config.id}`);
-        funcionariosAtuais = await res.json();
-        
-        corpo.innerHTML = funcionariosAtuais.map(f => `
-            <tr>
-                <td><strong>${f.nome}</strong><br><small>${f.cpf}</small></td>
-                <td>${f.setor || 'Geral'}</td>
-                <td>
-                    <button class="btn" style="background:none; color:var(--primary);" onclick="prepararEdicao('${f.cpf}')" title="Editar"><i class="fas fa-edit"></i></button>
-                    <button class="btn" style="background:none; color:green;" onclick="verRelatorio('${f.cpf}', '${f.nome}')" title="Relatório"><i class="fas fa-file-invoice"></i></button>
-                    <button class="btn" style="background:none; color:black;" onclick="abrirQR('${f.cpf}', '${f.nome}')" title="QR Code"><i class="fas fa-qrcode"></i></button>
-                    <button class="btn" style="background:none; color:var(--danger);" onclick="removerFuncionario('${f.cpf}')" title="Excluir"><i class="fas fa-trash"></i></button>
-                </td>
-            </tr>
-        `).join('');
+        try {
+            const res = await fetch(`${API_URL}/funcionarios/unidade/${config.id}`);
+            funcionariosAtuais = await res.json();
+            corpo.innerHTML = funcionariosAtuais.map(f => `
+                <tr>
+                    <td><strong>${f.nome}</strong><br><small>${f.cpf}</small></td>
+                    <td>${f.setor || 'Geral'}<br><small>${f.tipo_contrato || 'CLT'}</small></td>
+                    <td>
+                        <button class="btn" style="background:none; color:var(--primary);" onclick="prepararEdicao('${f.cpf}')"><i class="fas fa-edit"></i></button>
+                        <button class="btn" style="background:none; color:green;" onclick="verRelatorio('${f.cpf}', '${f.nome}')"><i class="fas fa-file-invoice"></i></button>
+                        <button class="btn" style="background:none; color:black;" onclick="abrirQR('${f.cpf}', '${f.nome}')"><i class="fas fa-qrcode"></i></button>
+                        <button class="btn" style="background:none; color:var(--danger);" onclick="removerFuncionario('${f.cpf}')"><i class="fas fa-trash"></i></button>
+                    </td>
+                </tr>
+            `).join('');
+        } catch (e) { console.error(e); }
     }
 
     async function verRelatorio(cpf, nome) {
@@ -205,25 +210,25 @@
         
         const res = await fetch(`${API_URL}/ponto/funcionario/${cpf}`);
         pontosCache = await res.json();
-        renderizarTabela(pontosCache);
+        renderizarTabelaRelatorio(pontosCache);
     }
 
     function aplicarFiltro() {
-        const ini = document.getElementById('filtro-inicio').value;
+        const inicio = document.getElementById('filtro-inicio').value;
         const fim = document.getElementById('filtro-fim').value;
-        if(!ini || !fim) return alert("Selecione ambas as datas.");
+        if(!inicio || !fim) return alert("Selecione o período.");
 
-        const dIni = new Date(ini + "T00:00:00");
+        const dIni = new Date(inicio + "T00:00:00");
         const dFim = new Date(fim + "T23:59:59");
 
         const filtrados = pontosCache.filter(p => {
             const dp = new Date(p.timestamp_servidor);
             return dp >= dIni && dp <= dFim;
         });
-        renderizarTabela(filtrados);
+        renderizarTabelaRelatorio(filtrados);
     }
 
-    function renderizarTabela(lista) {
+    function renderizarTabelaRelatorio(lista) {
         let total = 0;
         document.getElementById('lista-pontos-func').innerHTML = lista.map(p => {
             if(p.tipo === "SAÍDA") total += (p.horas_trabalhadas || 0);
@@ -262,12 +267,14 @@
         const metodo = isEdit ? 'PUT' : 'POST';
         const url = isEdit ? `${API_URL}/funcionarios/${cpf}` : `${API_URL}/funcionarios`;
 
-        await fetch(url, {
+        const res = await fetch(url, {
             method: metodo,
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify(dados)
         });
-        fecharModalCadastro(); carregarFuncionarios();
+
+        if(res.ok) { fecharModalCadastro(); carregarFuncionarios(); }
+        else { alert("Erro ao salvar funcionário."); }
     }
 
     function prepararEdicao(cpf) {
@@ -283,15 +290,17 @@
     }
 
     async function removerFuncionario(cpf) {
-        if(!confirm("Excluir este funcionário permanentemente?")) return;
-        await fetch(`${API_URL}/funcionarios/${cpf.replace(/\D/g,'')}`, { method: 'DELETE' });
-        carregarFuncionarios();
+        if(!confirm("Tem certeza que deseja excluir este funcionário?")) return;
+        const res = await fetch(`${API_URL}/funcionarios/${cpf.replace(/\D/g,'')}`, { method: 'DELETE' });
+        if(res.ok) carregarFuncionarios();
     }
 
     function abrirModalCadastro() {
         document.getElementById('f-cpf').disabled = false;
         document.getElementById('f-nome').value = "";
         document.getElementById('f-cpf').value = "";
+        document.getElementById('f-setor').value = "";
+        document.getElementById('f-salario').value = "";
         document.getElementById('titulo-modal-func').innerText = "Novo Funcionário";
         document.getElementById('modalFunc').style.display = 'flex';
     }
