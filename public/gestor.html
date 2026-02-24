@@ -2,7 +2,7 @@
 <html lang="pt-br">
 <head>
     <meta charset="UTF-8">
-    <title>PontoBack | Gestão de Funcionários</title>
+    <title>PontoBack | Gestão Completa</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
@@ -29,14 +29,14 @@
         .login-screen { position: fixed; inset: 0; background: var(--sidebar-bg); display: flex; align-items: center; justify-content: center; z-index: 5000; }
         #resumo-horas-box { background: #f8fafc; padding: 1.5rem; border-radius: 12px; margin-bottom: 1.5rem; border: 1px solid var(--border); }
 
+        /* CORREÇÃO DO PDF: Força a exibição apenas do conteúdo do modal durante a impressão */
         @media print {
-            body * { visibility: hidden !important; }
-            .no-print, .sidebar, .btn, input, select, header { display: none !important; }
-            #modalRelatorio, #modalRelatorio *, #modalQR, #modalQR * { visibility: visible !important; }
-            #modalRelatorio, #modalQR { position: absolute !important; left: 0 !important; top: 0 !important; width: 100% !important; display: block !important; background: white !important; }
-            .modal-content { max-height: none !important; overflow: visible !important; box-shadow: none !important; border: none !important; width: 100% !important; padding: 0 !important; }
+            body { background: white !important; }
+            .no-print, .sidebar, .main, .btn, input, select, header { display: none !important; }
+            .modal { position: absolute !important; display: block !important; background: white !important; inset: 0 !important; }
+            .modal-content { width: 100% !important; max-width: 100% !important; box-shadow: none !important; border: none !important; padding: 0 !important; }
             table { width: 100% !important; border: 1px solid #000 !important; }
-            th, td { border: 1px solid #000 !important; color: #000 !important; padding: 8px !important; }
+            th, td { border: 1px solid #000 !important; color: black !important; padding: 8px !important; }
         }
     </style>
 </head>
@@ -46,8 +46,8 @@
     <div style="background:#1e293b; padding:2.5rem; border-radius:16px; width:380px; text-align:center;">
         <h2 style="color:white; margin-bottom:1.5rem;">Gestor PontoBack</h2>
         <input type="text" id="l-cnpj" placeholder="CNPJ da Unidade">
-        <input type="password" id="l-senha" placeholder="Senha">
-        <button class="btn" style="width:100%; margin-top: 1rem;" onclick="fazerLogin()">Entrar no Painel</button>
+        <input type="password" id="l-senha" placeholder="Senha do Painel">
+        <button class="btn" style="width:100%; margin-top: 1rem;" onclick="fazerLogin()">Entrar</button>
     </div>
 </div>
 
@@ -82,18 +82,18 @@
 <div id="modalRelatorio" class="modal">
     <div class="modal-content">
         <div class="no-print" style="display:flex; justify-content:space-between; align-items:center;">
-            <h2 id="rel-nome-func">Folha de Ponto</h2>
+            <h2 id="rel-nome-func-header">Folha de Ponto</h2>
             <button class="btn" style="background:#64748b;" onclick="document.getElementById('modalRelatorio').style.display='none'">Fechar</button>
         </div>
         <div class="no-print" style="background:#f1f5f9; padding:15px; border-radius:12px; margin: 20px 0; display:flex; gap:10px; align-items:flex-end;">
             <div style="flex:1"><label style="font-size:12px; font-weight:bold;">Início:</label><input type="date" id="filtro-inicio"></div>
             <div style="flex:1"><label style="font-size:12px; font-weight:bold;">Fim:</label><input type="date" id="filtro-fim"></div>
             <button class="btn" onclick="aplicarFiltro()">Filtrar</button>
-            <button class="btn" style="background:var(--success);" onclick="window.print()">PDF</button>
+            <button class="btn" style="background:var(--success);" onclick="window.print()">Gerar PDF</button>
         </div>
         <div id="resumo-horas-box">
             <p>Funcionário: <strong id="rel-nome-display">---</strong></p>
-            Total: <strong id="total-horas-acumuladas">0.00h</strong> | Registros: <strong id="qtd-marcacoes">0</strong>
+            Total Horas: <strong id="total-horas-acumuladas">0.00h</strong> | Registros: <strong id="qtd-marcacoes">0</strong>
         </div>
         <table>
             <thead><tr><th>Data</th><th>Hora</th><th>Tipo</th><th>Duração</th></tr></thead>
@@ -104,10 +104,10 @@
 
 <div id="modalFunc" class="modal no-print">
     <div class="modal-content" style="max-width: 500px;">
-        <h3 id="titulo-modal-func">Funcionário</h3>
+        <h3 id="titulo-modal-func">Novo Funcionário</h3>
         <input type="text" id="f-nome" placeholder="Nome Completo">
         <input type="text" id="f-cpf" placeholder="CPF (Login)">
-        <input type="password" id="f-senha" placeholder="Senha de Acesso">
+        <input type="text" id="f-senha" placeholder="Senha de Acesso Individual">
         <input type="text" id="f-setor" placeholder="Setor">
         <input type="number" id="f-salario" placeholder="Salário Base">
         <select id="f-tipo"><option value="CLT">CLT</option><option value="PJ">PJ</option></select>
@@ -122,6 +122,7 @@
         <p id="qr-nome-func" style="margin: 10px 0; font-weight: bold;"></p>
         <div id="qrcode-container" style="display: flex; justify-content: center; margin-bottom: 20px;"></div>
         <button class="btn no-print" onclick="document.getElementById('modalQR').style.display='none'">Fechar</button>
+        <button class="btn no-print" style="margin-top:10px; background:#64748b;" onclick="window.print()">Imprimir QR</button>
     </div>
 </div>
 
@@ -151,25 +152,30 @@
             const dados = await res.json();
             localStorage.setItem("config_gestor", JSON.stringify({ id: dados.id, nome: dados.nome }));
             location.reload();
-        } else { alert("Login inválido!"); }
+        } else { alert("Acesso negado."); }
     }
 
     async function carregarFuncionarios() {
-        const res = await fetch(`${API_URL}/funcionarios/unidade/${config.id}`);
-        funcionariosAtuais = await res.json();
-        document.getElementById('lista-func').innerHTML = funcionariosAtuais.map(f => `
-            <tr>
-                <td><strong>${f.nome}</strong><br><small>${f.cpf}</small></td>
-                <td>${f.setor || 'Geral'}</td>
-                <td><strong>L:</strong> ${f.cpf}<br><strong>S:</strong> ${f.senha || '---'}</td>
-                <td>
-                    <button class="btn" style="background:none; color:blue;" onclick="prepararEdicao('${f.cpf}')"><i class="fas fa-edit"></i></button>
-                    <button class="btn" style="background:none; color:green;" onclick="verRelatorio('${f.cpf}', '${f.nome}')"><i class="fas fa-file-invoice"></i></button>
-                    <button class="btn" style="background:none; color:black;" onclick="abrirQR('${f.cpf}', '${f.nome}')"><i class="fas fa-qrcode"></i></button>
-                    <button class="btn" style="background:none; color:red;" onclick="removerFuncionario('${f.cpf}')"><i class="fas fa-trash"></i></button>
-                </td>
-            </tr>
-        `).join('');
+        try {
+            const res = await fetch(`${API_URL}/funcionarios/unidade/${config.id}`);
+            funcionariosAtuais = await res.json();
+            document.getElementById('lista-func').innerHTML = funcionariosAtuais.map(f => `
+                <tr>
+                    <td><strong>${f.nome}</strong><br><small>${f.cpf}</small></td>
+                    <td>${f.setor || 'Geral'}</td>
+                    <td>
+                        <span style="font-size:0.8rem">Login: <strong>${f.cpf}</strong></span><br>
+                        <span style="font-size:0.8rem">Senha: <strong>${f.senha || '---'}</strong></span>
+                    </td>
+                    <td>
+                        <button class="btn" style="background:none; color:blue;" onclick="prepararEdicao('${f.cpf}')"><i class="fas fa-edit"></i></button>
+                        <button class="btn" style="background:none; color:green;" onclick="verRelatorio('${f.cpf}', '${f.nome}')"><i class="fas fa-file-invoice"></i></button>
+                        <button class="btn" style="background:none; color:black;" onclick="abrirQR('${f.cpf}', '${f.nome}')"><i class="fas fa-qrcode"></i></button>
+                        <button class="btn" style="background:none; color:red;" onclick="removerFuncionario('${f.cpf}')"><i class="fas fa-trash"></i></button>
+                    </td>
+                </tr>
+            `).join('');
+        } catch (e) { console.error("Erro ao listar:", e); }
     }
 
     async function salvarFuncionario() {
@@ -201,6 +207,7 @@
         document.getElementById('f-setor').value = f.setor;
         document.getElementById('f-salario').value = f.salario_base;
         document.getElementById('f-tipo').value = f.tipo_contrato;
+        document.getElementById('titulo-modal-func').innerText = "Editar Funcionário";
         document.getElementById('modalFunc').style.display = 'flex';
     }
 
@@ -224,8 +231,11 @@
     }
 
     function aplicarFiltro() {
-        const dIni = new Date(document.getElementById('filtro-inicio').value + "T00:00:00");
-        const dFim = new Date(document.getElementById('filtro-fim').value + "T23:59:59");
+        const ini = document.getElementById('filtro-inicio').value;
+        const fim = document.getElementById('filtro-fim').value;
+        if(!ini || !fim) return alert("Defina o período");
+        const dIni = new Date(ini + "T00:00:00");
+        const dFim = new Date(fim + "T23:59:59");
         const filtrados = pontosCache.filter(p => {
             const dp = new Date(p.timestamp_servidor);
             return dp >= dIni && dp <= dFim;
@@ -241,7 +251,7 @@
     }
 
     async function removerFuncionario(cpf) {
-        if(confirm("Excluir?")) {
+        if(confirm("Excluir definitivamente?")) {
             await fetch(`${API_URL}/funcionarios/${cpf}`, { method: 'DELETE' });
             carregarFuncionarios();
         }
@@ -250,6 +260,7 @@
     function abrirModalCadastro() {
         document.getElementById('f-cpf').disabled = false;
         document.querySelectorAll('#modalFunc input').forEach(i => i.value = "");
+        document.getElementById('titulo-modal-func').innerText = "Novo Funcionário";
         document.getElementById('modalFunc').style.display = 'flex';
     }
 
