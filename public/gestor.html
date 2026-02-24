@@ -2,7 +2,7 @@
 <html lang="pt-br">
 <head>
     <meta charset="UTF-8">
-    <title>PontoBack | Gestão Completa</title>
+    <title>PontoBack | Gestão Profissional</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
@@ -15,38 +15,42 @@
         .main { margin-left: 260px; padding: 3rem; width: 100%; }
 
         .card { background: white; border-radius: 12px; border: 1px solid var(--border); padding: 1.5rem; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
-        table { width: 100%; border-collapse: collapse; margin-top: 1rem; background: white; }
+        table { width: 100%; border-collapse: collapse; margin-top: 1rem; }
         th { background: #f1f5f9; padding: 1rem; text-align: left; font-size: 0.75rem; color: #64748b; text-transform: uppercase; border-bottom: 2px solid var(--border); }
-        td { padding: 1rem; border-bottom: 1px solid var(--border); font-size: 0.9rem; vertical-align: middle; }
+        td { padding: 1rem; border-bottom: 1px solid var(--border); font-size: 0.9rem; }
 
-        .btn { background: var(--primary); color: white; border: none; padding: 10px 16px; border-radius: 8px; cursor: pointer; font-weight: 600; display: inline-flex; align-items: center; gap: 8px; transition: 0.2s; }
+        .btn { background: var(--primary); color: white; border: none; padding: 10px 16px; border-radius: 8px; cursor: pointer; font-weight: 600; display: inline-flex; align-items: center; gap: 8px; }
         
         .modal { display:none; position:fixed; inset:0; background:rgba(15, 23, 42, 0.7); align-items:center; justify-content:center; z-index: 1000; padding: 20px; backdrop-filter: blur(4px); }
-        .modal-content { background:white; padding:2rem; border-radius:16px; width:100%; max-width:800px; max-height: 90vh; overflow-y: auto; position: relative; }
-        input, select { width: 100%; padding: 12px; margin: 8px 0; border: 1px solid var(--border); border-radius: 8px; font-size: 1rem; }
+        .modal-content { background:white; padding:2rem; border-radius:16px; width:100%; max-width:800px; max-height: 90vh; overflow-y: auto; }
+        input, select { width: 100%; padding: 12px; margin: 8px 0; border: 1px solid var(--border); border-radius: 8px; }
 
-        #resumo-horas-box { background: #f1f5f9; padding: 1.5rem; border-radius: 12px; margin-bottom: 1.5rem; border: 1px solid var(--border); }
-        #qrcode-container { display: flex; justify-content: center; margin: 20px 0; }
+        #resumo-horas-box { background: #f1f5f9; padding: 1rem; border-radius: 10px; margin-bottom: 1rem; border: 1px solid var(--border); }
 
-        /* ============================================================
-           CORREÇÃO DEFINITIVA PDF E QR CODE (PRINT)
-           ============================================================ */
+        /* ==========================================
+           CORREÇÃO CRÍTICA: IMPRESSÃO (PDF/QR)
+           ========================================== */
         @media print {
+            /* Esconde absolutamente tudo */
             body * { visibility: hidden !important; }
             .no-print, .sidebar, .main, .btn, input, select, .login-screen { display: none !important; }
 
-            /* Torna visível o modal que estiver aberto (Relatório OU QR Code) */
-            #modalRelatorio, #modalRelatorio *, #modalQR, #modalQR * { visibility: visible !important; }
-            
-            #modalRelatorio, #modalQR {
-                display: block !important;
+            /* Mostra apenas o modal que está com display: flex ou block no momento */
+            .modal[style*="display: flex"], 
+            .modal[style*="display: block"],
+            .modal[style*="display: flex"] *, 
+            .modal[style*="display: block"] * { 
+                visibility: visible !important; 
+            }
+
+            .modal[style*="display: flex"], 
+            .modal[style*="display: block"] {
                 position: absolute !important;
                 left: 0 !important;
                 top: 0 !important;
                 width: 100% !important;
                 background: white !important;
-                padding: 0 !important;
-                margin: 0 !important;
+                display: block !important;
             }
 
             .modal-content {
@@ -58,8 +62,7 @@
             }
 
             table { width: 100% !important; border: 1px solid #000 !important; border-collapse: collapse !important; }
-            th, td { border: 1px solid #000 !important; padding: 10px !important; color: #000 !important; }
-            th { background-color: #eee !important; -webkit-print-color-adjust: exact; }
+            th, td { border: 1px solid #000 !important; padding: 8px !important; color: black !important; }
         }
     </style>
 </head>
@@ -93,7 +96,7 @@
                 <tr>
                     <th>Nome / CPF</th>
                     <th>Setor</th>
-                    <th>Credenciais</th>
+                    <th>Acesso</th>
                     <th>Salário</th>
                     <th style="text-align: right;">Ações</th>
                 </tr>
@@ -106,18 +109,18 @@
 <div id="modalRelatorio" class="modal">
     <div class="modal-content">
         <div class="no-print" style="display:flex; justify-content:space-between; margin-bottom:15px;">
-            <h2>Folha de Ponto</h2>
-            <button class="btn" style="background:#64748b;" onclick="document.getElementById('modalRelatorio').style.display='none'">Fechar</button>
+            <h2>Folha de Ponto Individual</h2>
+            <button class="btn" style="background:#64748b;" onclick="fecharModais()">Fechar</button>
         </div>
         <div class="no-print" style="background:#f1f5f9; padding:15px; border-radius:8px; margin-bottom:15px; display:flex; gap:10px; align-items:flex-end;">
-            <div style="flex:1"><label style="font-size:11px; font-weight:bold;">INÍCIO:</label><input type="date" id="filtro-inicio"></div>
-            <div style="flex:1"><label style="font-size:11px; font-weight:bold;">FIM:</label><input type="date" id="filtro-fim"></div>
+            <div style="flex:1"><label style="font-size:11px; font-weight:bold;">DE:</label><input type="date" id="filtro-inicio"></div>
+            <div style="flex:1"><label style="font-size:11px; font-weight:bold;">ATÉ:</label><input type="date" id="filtro-fim"></div>
             <button class="btn" onclick="aplicarFiltro()">Filtrar</button>
-            <button class="btn" style="background:var(--success);" onclick="window.print()"><i class="fas fa-file-pdf"></i> Gerar PDF</button>
+            <button class="btn" style="background:var(--success);" onclick="window.print()">Gerar PDF</button>
         </div>
         <div id="resumo-horas-box">
-            Funcionário: <strong id="rel-nome-display">---</strong><br>
-            Total Acumulado: <strong id="total-horas-acumuladas">0.00h</strong>
+            Funcionário: <strong id="rel-nome-display">---</strong> | 
+            Total: <strong id="total-horas-acumuladas">0.00h</strong>
         </div>
         <table>
             <thead><tr><th>Data</th><th>Hora</th><th>Tipo</th><th>Duração</th></tr></thead>
@@ -128,27 +131,27 @@
 
 <div id="modalQR" class="modal">
     <div class="modal-content" style="max-width: 400px; text-align: center;">
-        <h3>Cartão de Ponto QR</h3>
-        <p id="qr-nome-func" style="margin: 15px 0; font-weight: bold; color: var(--primary); font-size: 1.2rem;"></p>
-        <div id="qrcode-container"></div>
-        <div class="no-print">
-            <button class="btn" style="width:100%; margin-top:20px;" onclick="window.print()">Imprimir QR Code</button>
-            <button class="btn" style="width:100%; margin-top:10px; background:none; color:#64748b;" onclick="document.getElementById('modalQR').style.display='none'">Fechar</button>
+        <h3 class="no-print">QR Code de Ponto</h3>
+        <p id="qr-nome-func" style="margin: 15px 0; font-weight: bold; font-size: 1.1rem;"></p>
+        <div id="qrcode-container" style="display: inline-block;"></div>
+        <div class="no-print" style="margin-top: 20px;">
+            <button class="btn" style="width:100%;" onclick="window.print()">Imprimir QR</button>
+            <button class="btn" style="width:100%; margin-top:10px; background:none; color:#64748b;" onclick="fecharModais()">Voltar</button>
         </div>
     </div>
 </div>
 
 <div id="modalFunc" class="modal no-print">
     <div class="modal-content" style="max-width: 500px;">
-        <h3 id="titulo-modal-func">Dados do Funcionário</h3>
+        <h3 id="titulo-modal-func">Funcionário</h3>
         <input type="text" id="f-nome" placeholder="Nome Completo">
         <input type="text" id="f-cpf" placeholder="CPF (Login)">
-        <input type="text" id="f-senha" placeholder="Senha Individual">
+        <input type="text" id="f-senha" placeholder="Senha">
         <input type="text" id="f-setor" placeholder="Setor">
-        <input type="number" id="f-salario" placeholder="Salário Base">
+        <input type="number" id="f-salario" placeholder="Salário">
         <select id="f-tipo"><option value="CLT">CLT</option><option value="PJ">PJ</option></select>
         <button class="btn" style="width:100%; margin-top:1rem;" onclick="salvarFuncionario()">Salvar</button>
-        <button onclick="fecharModalCadastro()" style="width:100%; background:none; border:none; margin-top:10px; cursor:pointer; color:#64748b;">Cancelar</button>
+        <button onclick="fecharModais()" style="width:100%; background:none; border:none; margin-top:10px; cursor:pointer;">Cancelar</button>
     </div>
 </div>
 
@@ -178,7 +181,7 @@
             const dados = await res.json();
             localStorage.setItem("config_gestor", JSON.stringify({ id: dados.id, nome: dados.nome }));
             location.reload();
-        } else { alert("Acesso negado."); }
+        } else { alert("Erro de login."); }
     }
 
     async function carregarFuncionarios() {
@@ -187,36 +190,38 @@
         document.getElementById('lista-func').innerHTML = funcionariosAtuais.map(f => `
             <tr>
                 <td><strong>${f.nome}</strong><br><small>${f.cpf}</small></td>
-                <td>${f.setor || 'Geral'}</td>
-                <td><small>Login: ${f.cpf}<br>Senha: ${f.senha || '---'}</small></td>
+                <td>${f.setor || '-'}</td>
+                <td><small>Senha: ${f.senha || '---'}</small></td>
                 <td>R$ ${parseFloat(f.salario_base || 0).toFixed(2)}</td>
                 <td style="text-align: right;">
-                    <button class="btn" style="background:none; color:blue;" onclick="prepararEdicao('${f.cpf}')"><i class="fas fa-edit"></i></button>
-                    <button class="btn" style="background:none; color:green;" onclick="verRelatorio('${f.cpf}', '${f.nome}')"><i class="fas fa-file-invoice"></i></button>
-                    <button class="btn" style="background:none; color:black;" onclick="abrirQR('${f.cpf}', '${f.nome}')"><i class="fas fa-qrcode"></i></button>
-                    <button class="btn" style="background:none; color:red;" onclick="removerFuncionario('${f.cpf}')"><i class="fas fa-trash"></i></button>
+                    <button class="btn" style="background:none; color:blue; padding:5px" onclick="prepararEdicao('${f.cpf}')"><i class="fas fa-edit"></i></button>
+                    <button class="btn" style="background:none; color:green; padding:5px" onclick="verRelatorio('${f.cpf}', '${f.nome}')"><i class="fas fa-file-invoice"></i></button>
+                    <button class="btn" style="background:none; color:black; padding:5px" onclick="abrirQR('${f.cpf}', '${f.nome}')"><i class="fas fa-qrcode"></i></button>
+                    <button class="btn" style="background:none; color:red; padding:5px" onclick="removerFuncionario('${f.cpf}')"><i class="fas fa-trash"></i></button>
                 </td>
             </tr>
         `).join('');
     }
 
     function abrirQR(cpf, nome) {
+        fecharModais();
         document.getElementById('qr-nome-func').innerText = nome;
         const container = document.getElementById('qrcode-container');
         container.innerHTML = "";
-        new QRCode(container, { text: cpf, width: 220, height: 220 });
+        new QRCode(container, { text: cpf, width: 200, height: 200 });
         document.getElementById('modalQR').style.display = 'flex';
     }
 
     async function verRelatorio(cpf, nome) {
+        fecharModais();
         document.getElementById('rel-nome-display').innerText = nome;
         document.getElementById('modalRelatorio').style.display = 'flex';
         const res = await fetch(`${API_URL}/ponto/funcionario/${cpf}`);
         pontosCache = await res.json();
-        renderizarTabelaPontos(pontosCache);
+        renderizarTabela(pontosCache);
     }
 
-    function renderizarTabelaPontos(lista) {
+    function renderizarTabela(lista) {
         let total = 0;
         document.getElementById('lista-pontos-func').innerHTML = lista.map(p => {
             if(p.tipo === "SAÍDA") total += (p.horas_trabalhadas || 0);
@@ -234,7 +239,7 @@
             const dp = new Date(p.timestamp_servidor);
             return dp >= new Date(ini+"T00:00:00") && dp <= new Date(fim+"T23:59:59");
         });
-        renderizarTabelaPontos(filtrados);
+        renderizarTabela(filtrados);
     }
 
     async function salvarFuncionario() {
@@ -254,10 +259,11 @@
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify(dados)
         });
-        fecharModalCadastro(); carregarFuncionarios();
+        fecharModais(); carregarFuncionarios();
     }
 
     function prepararEdicao(cpf) {
+        fecharModais();
         const f = funcionariosAtuais.find(x => x.cpf === cpf);
         document.getElementById('f-nome').value = f.nome;
         document.getElementById('f-cpf').value = f.cpf;
@@ -270,19 +276,23 @@
     }
 
     async function removerFuncionario(cpf) {
-        if(confirm("Excluir?")) {
+        if(confirm("Deseja excluir?")) {
             await fetch(`${API_URL}/funcionarios/${cpf}`, { method: 'DELETE' });
             carregarFuncionarios();
         }
     }
 
     function abrirModalCadastro() {
+        fecharModais();
         document.getElementById('f-cpf').disabled = false;
         document.querySelectorAll('#modalFunc input').forEach(i => i.value = "");
         document.getElementById('modalFunc').style.display = 'flex';
     }
 
-    function fecharModalCadastro() { document.getElementById('modalFunc').style.display = 'none'; }
+    function fecharModais() {
+        document.querySelectorAll('.modal').forEach(m => m.style.display = 'none');
+    }
+
     function sair() { localStorage.clear(); location.reload(); }
     iniciar();
 </script>
