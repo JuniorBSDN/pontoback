@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PontoBack | Totem Acadêmico</title>
+    <script src="https://unpkg.com/html5-qrcode"></script>
+    <style>
+        :root {
+            --primary: #10b981; /* Verde Matrix */
+            --bg: #030712;
+            --card: #111827;
+            --success: #059669;
+            --danger: #dc2626;
+        }
+        body {
+            background: var(--bg);
+            color: white;
+            font-family: 'Inter', sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+        }
+        .container {
+            background: var(--card);
+            padding: 2rem;
+            border-radius: 20px;
+            width: 90%;
+            max-width: 450px;
+            text-align: center;
+            border: 1px solid #1f2937;
+            box-shadow: 0 0 20px rgba(16, 185, 129, 0.1);
+        }
+        #reader {
+            width: 100%;
+            border-radius: 12px;
+            overflow: hidden;
+            margin: 20px 0;
+            border: 2px solid var(--primary) !important;
+        }
+        .status-msg {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: var(--bg);
+            z-index: 100;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            animation: fadeIn 0.3s ease;
+        }
+        .icon-check { font-size: 80px; color: var(--primary); margin-bottom: 20px; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    </style>
+</head>
+<body>
+
+<div class="container" id="app">
+    <h1 style="color: var(--primary); font-size: 1.5rem; margin-bottom: 0.5rem;">TOTEM ACADÊMICO</h1>
+    <p id="nome-escola" style="color: #94a3b8; margin-bottom: 1rem;">Carregando unidade...</p>
+
+    <div id="reader"></div>
+
+    <p style="color: #64748b; font-size: 0.9rem;">Aproxime seu QR Code da câmera</p>
+</div>
+
+<div id="feedback-tela" class="status-msg">
+    <div class="icon-check">✔</div>
+    <h2 id="msg-aluno" style="font-size: 2rem;">PRESENÇA CONFIRMADA!</h2>
+    <p id="nome-aluno-feedback" style="color: var(--primary); font-size: 1.5rem; margin-top: 10px;"></p>
+</div>
+
+<script>
+    const API_URL = "https://pontoback-tau.vercel.app/api";
+    let config = JSON.parse(localStorage.getItem("config_tablet_alunos"));
+
+    function iniciarCamera() {
+        const scanner = new Html5QrcodeScanner("reader", { fps: 10, qrbox: 250 });
+        scanner.render(onScanSuccess);
+    }
+
+    async function onScanSuccess(decodedText) {
+        if (window.processando) return;
+        window.processando = true;
+
+        try {
+            // Rota de presença que você adicionará no index.py
+            const res = await fetch(`${API_URL}/presenca/registrar`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    id_aluno: decodedText,
+                    id_cliente: config.id
+                })
+            });
+
+            const data = await res.json();
+            if (res.ok) {
+                exibirSucesso(data.aluno);
+            } else {
+                alert(data.erro || "Erro na leitura");
+            }
+        } catch (e) {
+            alert("Falha na conexão com o servidor");
+        } finally {
+            setTimeout(() => { window.processando = false; }, 3000);
+        }
+    }
+
+    function exibirSucesso(nome) {
+        const tela = document.getElementById('feedback-tela');
+        document.getElementById('nome-aluno-feedback').innerText = nome;
+        tela.style.display = 'flex';
+
+        setTimeout(() => {
+            tela.style.display = 'none';
+        }, 4000);
+    }
+
+    // Lógica de Ativação (igual a que você já usa no PontoBack)
+    if (!config) {
+        const code = prompt("Digite o código de ativação da unidade:");
+        if (code) {
+            // Aqui você pode buscar os dados da unidade via API
+            localStorage.setItem("config_tablet_alunos", JSON.stringify({id: "ID_DA_ESCOLA", nome: "Escola Exemplo"}));
+            location.reload();
+        }
+    } else {
+        document.getElementById('nome-escola').innerText = config.nome;
+        iniciarCamera();
+    }
+</script>
+</body>
+</html>
