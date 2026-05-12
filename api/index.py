@@ -25,10 +25,8 @@ if cred and not firebase_admin._apps:
 
 db = firestore.client()
 
-
 def get_agora_br():
     return datetime.now(timezone(timedelta(hours=-3)))
-
 
 # --- LOGIN ADMINISTRATIVO (DONO) ---
 @app.route('/api/admin/login', methods=['POST'])
@@ -40,7 +38,6 @@ def login_admin():
     if senha_digitada == senha_mestra:
         return jsonify({"auth": True}), 200
     return jsonify({"erro": "Senha incorreta"}), 401
-
 
 # --- GERENCIAMENTO DE CLIENTES ---
 @app.route('/api/clientes', methods=['GET', 'POST'])
@@ -55,7 +52,6 @@ def gerenciar_clientes():
 
     docs = db.collection('clientes').stream()
     return jsonify([doc.to_dict() for doc in docs])
-
 
 @app.route('/api/clientes/<id>', methods=['GET', 'PUT', 'DELETE'])
 def detalhe_cliente(id):
@@ -72,8 +68,7 @@ def detalhe_cliente(id):
     doc = doc_ref.get()
     return jsonify(doc.to_dict()) if doc.exists else ({'erro': '404'}, 404)
 
-
-# --- LOGIN DO TABLET / UNIDADE (CORRIGIDO) ---
+# --- LOGIN DO TABLET / UNIDADE (VERSÃO AMPLIADA PARA SIDEBAR) ---
 @app.route('/api/clientes/login-tablet', methods=['POST'])
 def login_unidade():
     try:
@@ -85,21 +80,21 @@ def login_unidade():
         for doc in docs:
             c = doc.to_dict()
             cnpj_banco = "".join(filter(str.isdigit, str(c.get('cnpj', ''))))
-            # CORREÇÃO: Verifica 'senha_acesso' ou 'senha' para evitar erro de campo inexistente
             senha_banco = str(c.get('senha_acesso') or c.get('senha') or '').strip()
 
             if cnpj_banco == cnpj_input and senha_banco == senha_input:
                 return jsonify({
                     "id": doc.id,
-                    "nome": c.get('nome_fantasia') or c.get('nome') or "Unidade"
+                    "nome": c.get('nome_fantasia') or c.get('nome') or "Unidade",
+                    "cnpj": c.get('cnpj') or "Não informado",
+                    "responsavel": c.get('responsavel') or "Não informado"
                 }), 200
 
         return jsonify({"erro": "CNPJ ou Senha incorretos"}), 401
     except Exception as e:
         return jsonify({"erro": str(e)}), 500
 
-
-# --- REGISTO DE PONTO ---
+# --- REGISTO DE PONTO (FUNCIONÁRIOS) ---
 @app.route('/api/ponto/registrar', methods=['POST'])
 def registrar_ponto():
     try:
@@ -133,8 +128,30 @@ def registrar_ponto():
     except Exception as e:
         return jsonify({"erro": str(e)}), 500
 
+# --- REGISTO DE PRESENÇA (ALUNOS) ---
+@app.route('/api/presenca/registrar', methods=['POST'])
+def registrar_presenca():
+    try:
+        dados = request.json
+        matricula = "".join(filter(str.isdigit, str(dados.get('id_aluno', ''))))
+        a_ref = db.collection('alunos').document(matricula).get()
 
-# --- FUNCIONÁRIOS (GERENCIAMENTO COMPLETO) ---
+        if not a_ref.exists:
+            return jsonify({"erro": "Matrícula não encontrada"}), 404
+
+        aluno = a_ref.to_dict()
+        agora = get_agora_br()
+
+        nova_presenca = {
+            "id_aluno": matricula, "aluno": aluno['nome'], "id_cliente": dados.get('id_cliente'),
+            "timestamp": agora.isoformat(), "status": "PRESENTE"
+        }
+        db.collection('presencas').add(nova_presenca)
+        return jsonify({"status": "PRESENTE", "aluno": aluno['nome']}), 200
+    except Exception as e:
+        return jsonify({"erro": str(e)}), 500
+
+# --- FUNCIONÁRIOS (GERENCIAMENTO) ---
 @app.route('/api/funcionarios', methods=['POST'])
 def criar_func():
     try:
@@ -146,7 +163,6 @@ def criar_func():
     except Exception as e:
         return jsonify({"erro": str(e)}), 500
 
-
 @app.route('/api/funcionarios/unidade/<cliente_id>', methods=['GET'])
 def listar_funcs(cliente_id):
     try:
@@ -155,25 +171,19 @@ def listar_funcs(cliente_id):
     except Exception as e:
         return jsonify({"erro": str(e)}), 500
 
-
-# CORREÇÃO: Rota específica para Alterar e Excluir usando o CPF como ID
 @app.route('/api/funcionarios/<cpf>', methods=['PUT', 'DELETE'])
 def gerenciar_func(cpf):
     try:
         cpf_limpo = "".join(filter(str.isdigit, str(cpf)))
         doc_ref = db.collection('funcionarios').document(cpf_limpo)
-
         if request.method == 'PUT':
-            dados = request.json
-            doc_ref.update(dados)
+            doc_ref.update(request.json)
             return jsonify({"status": "atualizado"}), 200
-
         if request.method == 'DELETE':
             doc_ref.delete()
             return jsonify({"status": "excluido"}), 200
     except Exception as e:
         return jsonify({"erro": str(e)}), 500
-
 
 @app.route('/api/ponto/funcionario/<cpf>', methods=['GET'])
 def relatorio(cpf):
@@ -185,6 +195,38 @@ def relatorio(cpf):
     except Exception as e:
         return jsonify({"erro": str(e)}), 500
 
+# --- GESTÃO DE ALUNOS (ROTAS NOVAS) ---
+@app.route('/api/alunos', methods=['POST'])
+def cadastrar_aluno():
+    try:
+        dados = request.json
+        matricula = "".join(filter(str.isdigit, str(dados.get('matricula', ''))))
+        db.collection('alunos').document(matricula).set(dados)
+        return jsonify(dados), 201
+    except Exception as e:
+        return jsonify({"erro": str(e)}), 500
+
+@app.route('/api/alunos/unidade/<cliente_id>', methods=['GET'])
+def listar_alunos(cliente_id):
+    try:
+        docs = db.collection('alunos').where('cliente_id', '==', cliente_id).stream()
+        return jsonify([doc.to_dict() for doc in docs]), 200
+    except Exception as e:
+        return jsonify({"erro": str(e)}), 500
+
+@app.route('/api/alunos/<matricula>', methods=['PUT', 'DELETE'])
+def gerenciar_aluno(matricula):
+    try:
+        mat_limpa = "".join(filter(str.isdigit, str(matricula)))
+        doc_ref = db.collection('alunos').document(mat_limpa)
+        if request.method == 'PUT':
+            doc_ref.update(request.json)
+            return jsonify({"status": "atualizado"}), 200
+        if request.method == 'DELETE':
+            doc_ref.delete()
+            return jsonify({"status": "excluido"}), 200
+    except Exception as e:
+        return jsonify({"erro": str(e)}), 500
 
 if __name__ == '__main__':
     app.run(debug=True, port=5000)
