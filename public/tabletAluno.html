@@ -82,32 +82,37 @@
     }
 
     async function onScanSuccess(decodedText) {
-        if (window.processando) return;
-        window.processando = true;
+      async function onScanSuccess(decodedText) {
+    if (window.processando) return;
+    window.processando = true;
 
-        try {
-            // Rota de presença que você adicionará no index.py
-            const res = await fetch(`${API_URL}/presenca/registrar`, {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({
-                    id_aluno: decodedText,
-                    id_cliente: config.id
-                })
-            });
+    // Limpa espaços ou caracteres invisíveis do QR Code
+    const matriculaLimpa = decodedText.trim();
 
+    try {
+        const res = await fetch(`${API_URL}/presencas`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                id_aluno: matriculaLimpa,
+                id_cliente: config.id // O ID da escola deve ser idêntico ao do Gestor
+            })
+        });
+
+        if (res.ok) {
             const data = await res.json();
-            if (res.ok) {
-                exibirSucesso(data.aluno);
-            } else {
-                alert(data.erro || "Erro na leitura");
-            }
-        } catch (e) {
-            alert("Falha na conexão com o servidor");
-        } finally {
-            setTimeout(() => { window.processando = false; }, 3000);
+            // Preenche o modal de informações (seu feedback-tela)
+            document.getElementById('info-nome').innerText = data.aluno.nome;
+            document.getElementById('info-mat').innerText = data.aluno.matricula;
+            // ... resto do preenchimento ...
+            document.getElementById('feedback-tela').style.display = 'flex';
         }
+    } catch (e) {
+        console.error("Erro no envio:", e);
+    } finally {
+        setTimeout(() => { window.processando = false; }, 5000);
     }
+}
 
     function exibirSucesso(nome) {
         const tela = document.getElementById('feedback-tela');
