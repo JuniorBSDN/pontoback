@@ -92,8 +92,8 @@ def login_unidade():
                 return jsonify({
                     "id": doc.id,
                     "nome": c.get('nome_fantasia') or c.get('nome') or "Unidade",
-                    "cnpj": c.get('cnpj') or "Não informado",
-                    "responsavel": c.get('responsavel') or "Não informado"
+                    "cnpj": c.get('cnpj') or "00.000.000/0000-00",  # ADICIONE ESTA LINHA
+                    "responsavel": c.get('responsavel') or "Não informado"  # ADICIONE ESTA LINHA
                 }), 200
 
         return jsonify({"erro": "CNPJ ou Senha incorretos"}), 401
@@ -249,6 +249,30 @@ def gerenciar_aluno(matricula):
     except Exception as e:
         return jsonify({"erro": str(e)}), 500
 
+
+@app.route('/api/presencas', methods=['POST'])
+def registrar_presenca():
+    dados = request.json
+    id_aluno = str(dados.get('id_aluno'))
+    id_cliente = dados.get('id_cliente') # MUITO IMPORTANTE: O ID da escola
+
+    # Busca aluno para confirmar que existe e pegar os dados para o modal
+    aluno_ref = db.collection('alunos').document(id_aluno).get()
+    if not aluno_ref.exists:
+        return jsonify({"erro": "Aluno não cadastrado"}), 404
+
+    aluno_data = aluno_ref.to_dict()
+
+    # Grava a presença com o vínculo da escola (cliente_id)
+    nova_presenca = {
+        "id_aluno": id_aluno,
+        "cliente_id": id_cliente, # O Gestor usa este campo para filtrar
+        "timestamp": datetime.now().isoformat(),
+        "status": "Presente"
+    }
+    db.collection('presencas').add(nova_presenca)
+
+    return jsonify({"status": "sucesso", "aluno": aluno_data}), 201
 
 if __name__ == '__main__':
     app.run(debug=True, port=5000)
