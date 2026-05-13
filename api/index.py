@@ -7,7 +7,7 @@ from flask_cors import CORS
 from datetime import datetime, timedelta, timezone
 
 app = Flask(__name__)
-# CORS configurado para permitir conexões de qualquer origem
+# CORS configurado para permitir conexões de qualquer origem (Local ou Vercel)
 CORS(app, resources={r"/api/*": {"origins": "*"}})
 
 # --- CONFIGURAÇÃO FIREBASE ---
@@ -39,7 +39,7 @@ def login_admin():
         return jsonify({"auth": True}), 200
     return jsonify({"erro": "Senha incorreta"}), 401
 
-# --- GERENCIAMENTO DE CLIENTES (UNIDADES/ESCOLAS) ---
+# --- GERENCIAMENTO DE CLIENTES (UNIDADES) ---
 @app.route('/api/clientes', methods=['GET', 'POST'])
 def gerenciar_clientes():
     if request.method == 'POST':
@@ -68,7 +68,7 @@ def detalhe_cliente(id):
     doc = doc_ref.get()
     return jsonify(doc.to_dict()) if doc.exists else ({'erro': '404'}, 404)
 
-# --- LOGIN DO TABLET / PAINEL DA UNIDADE ---
+# --- LOGIN DO TABLET / UNIDADE ---
 @app.route('/api/clientes/login-tablet', methods=['POST'])
 def login_unidade():
     try:
@@ -94,15 +94,15 @@ def login_unidade():
     except Exception as e:
         return jsonify({"erro": str(e)}), 500
 
-# --- REGISTRO DE PRESENÇA (ALUNOS) - USADO PELO TABLET ---
+# --- REGISTRO DE PRESENÇA (ALUNOS) ---
 @app.route('/api/presencas', methods=['POST'])
 def registrar_presenca():
     try:
         dados = request.json
         matricula = "".join(filter(str.isdigit, str(dados.get('id_aluno', ''))))
+        # Padroniza para cliente_id para que o gestor consiga filtrar
         cliente_id = dados.get('id_cliente') or dados.get('cliente_id')
 
-        # Busca dados do aluno para o tablet mostrar a ficha na tela
         a_ref = db.collection('alunos').document(matricula).get()
         if not a_ref.exists:
             return jsonify({"erro": "Matrícula não encontrada"}), 404
@@ -118,10 +118,8 @@ def registrar_presenca():
             "status": "PRESENTE"
         }
         
-        # Salva o registro de presença
         db.collection('presencas').add(nova_presenca)
         
-        # Retorna o objeto 'aluno' completo para preencher o modal do tablet
         return jsonify({
             "status": "PRESENTE", 
             "aluno": aluno 
@@ -129,10 +127,11 @@ def registrar_presenca():
     except Exception as e:
         return jsonify({"erro": str(e)}), 500
 
-# --- LISTAGEM DE PRESENÇAS (USADO PELO GESTOR) ---
+# --- LISTAGEM DE PRESENÇAS (PARA O GESTOR) ---
 @app.route('/api/presencas/unidade/<id_unidade>', methods=['GET'])
 def listar_presencas_unidade(id_unidade):
     try:
+        # Busca presenças filtrando por cliente_id
         docs = db.collection('presencas').where('cliente_id', '==', id_unidade).stream()
         lista = [doc.to_dict() for doc in docs]
         lista.sort(key=lambda x: x['timestamp'], reverse=True)
@@ -150,7 +149,7 @@ def historico_aluno(matricula):
     except Exception as e:
         return jsonify({"erro": str(e)}), 500
 
-# --- GESTÃO DE ALUNOS (CADASTRO/EDIÇÃO) ---
+# --- GESTÃO DE ALUNOS ---
 @app.route('/api/alunos', methods=['POST'])
 def cadastrar_aluno():
     try:
@@ -197,7 +196,6 @@ def registrar_ponto():
         func = f_ref.to_dict()
         agora = get_agora_br()
 
-        # Busca último ponto para decidir se é ENTRADA ou SAÍDA
         docs = db.collection('pontos').where('id_funcionario', '==', cpf).get()
         pontos = [p.to_dict() for p in docs]
         pontos.sort(key=lambda x: x['timestamp_servidor'], reverse=True)
@@ -218,7 +216,7 @@ def registrar_ponto():
     except Exception as e:
         return jsonify({"erro": str(e)}), 500
 
-# --- FUNCIONÁRIOS (GERENCIAMENTO) ---
+# --- GERENCIAMENTO DE FUNCIONÁRIOS ---
 @app.route('/api/funcionarios', methods=['POST'])
 def criar_func():
     try:
