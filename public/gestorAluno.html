@@ -2,236 +2,135 @@
 <html lang="pt-br">
 <head>
     <meta charset="UTF-8">
-    <title>PontoBack | Gestão de Alunos</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PontoBack | Totem Acadêmico</title>
+    <script src="https://unpkg.com/html5-qrcode"></script>
     <style>
-        :root { 
-            --primary: #10b981; /* Verde Matrix para Alunos */
-            --sidebar-bg: #0f172a; 
-            --bg: #f8fafc; 
-            --border: #e2e8f0; 
-            --danger: #ef4444; 
-            --success: #10b981; 
-            --info: #3b82f6;
+        :root {
+            --primary: #10b981; /* Verde Matrix */
+            --bg: #030712;
+            --card: #111827;
+            --success: #059669;
+            --danger: #dc2626;
         }
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: 'Inter', sans-serif; background: var(--bg); display: flex; color: #1e293b; min-height: 100vh; }
-
-        .sidebar { background: var(--sidebar-bg); color: white; width: 260px; height: 100vh; padding: 2rem; position: fixed; }
-        .main { margin-left: 260px; padding: 3rem; width: 100%; }
-
-        .card { background: white; border-radius: 12px; border: 1px solid var(--border); padding: 1.5rem; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
-        table { width: 100%; border-collapse: collapse; margin-top: 1rem; }
-        th { background: #f1f5f9; padding: 1rem; text-align: left; font-size: 0.75rem; color: #64748b; text-transform: uppercase; border-bottom: 2px solid var(--border); }
-        td { padding: 1rem; border-bottom: 1px solid var(--border); font-size: 0.9rem; vertical-align: middle; }
-
-        .btn { background: var(--primary); color: white; border: none; padding: 10px 16px; border-radius: 8px; cursor: pointer; font-weight: 600; display: inline-flex; align-items: center; gap: 8px; transition: 0.2s; text-decoration: none; }
-        .btn-icon { background: none; border: none; cursor: pointer; font-size: 1.1rem; padding: 5px; transition: 0.2s; }
-        
-        .modal { display:none; position:fixed; inset:0; background:rgba(15, 23, 42, 0.7); align-items:center; justify-content:center; z-index: 1000; padding: 20px; backdrop-filter: blur(4px); }
-        .modal-content { background:white; padding:2rem; border-radius:16px; width:100%; max-width:500px; position: relative; }
-        input, select { width: 100%; padding: 12px; margin: 8px 0; border: 1px solid var(--border); border-radius: 8px; font-size: 1rem; }
-
-        @media print {
-            .no-print { display: none !important; }
-            .sidebar { display: none !important; }
-            .main { margin-left: 0 !important; width: 100% !important; padding: 0 !important; }
-            .modal-content { box-shadow: none !important; border: none !important; }
+        body {
+            background: var(--bg);
+            color: white;
+            font-family: 'Inter', sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
         }
+        .container {
+            background: var(--card);
+            padding: 2rem;
+            border-radius: 20px;
+            width: 90%;
+            max-width: 450px;
+            text-align: center;
+            border: 1px solid #1f2937;
+            box-shadow: 0 0 20px rgba(16, 185, 129, 0.1);
+        }
+        #reader {
+            width: 100%;
+            border-radius: 12px;
+            overflow: hidden;
+            margin: 20px 0;
+            border: 2px solid var(--primary) !important;
+        }
+        .status-msg {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: var(--bg);
+            z-index: 100;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            animation: fadeIn 0.3s ease;
+        }
+        .icon-check { font-size: 80px; color: var(--primary); margin-bottom: 20px; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
     </style>
 </head>
 <body>
 
-<div id="login-area" class="no-print" style="position: fixed; inset: 0; background: var(--sidebar-bg); display: flex; align-items: center; justify-content: center; z-index: 5000;">
-    <div style="background:#1e293b; padding:2.5rem; border-radius:16px; width:380px; text-align:center;">
-        <h2 style="color:white; margin-bottom:1.5rem;">Gestão de Alunos</h2>
-        <input type="text" id="l-cnpj" placeholder="CNPJ da Escola">
-        <input type="password" id="l-senha" placeholder="Senha Administrativa">
-        <button class="btn" style="width:100%; margin-top: 1rem;" onclick="fazerLogin()">Acessar Painel</button>
-    </div>
+<div class="container" id="app">
+    <h1 style="color: var(--primary); font-size: 1.5rem; margin-bottom: 0.5rem;">TOTEM ACADÊMICO</h1>
+    <p id="nome-escola" style="color: #94a3b8; margin-bottom: 1rem;">Carregando unidade...</p>
+
+    <div id="reader"></div>
+
+    <p style="color: #64748b; font-size: 0.9rem;">Aproxime seu QR Code da câmera</p>
 </div>
 
-<nav class="sidebar no-print">
-    <h2 style="color:#10b981; margin-bottom: 2rem;">PontoBack</h2>
-    <p style="font-size: 0.8rem; color: #94a3b8; margin-bottom: 0.5rem;">Módulo Acadêmico</p>
-
-    <div style="margin-bottom: 1.5rem; border-bottom: 1px solid #1e293b; padding-bottom: 1rem;">
-        <small style="color:#94a3b8; text-transform: uppercase; font-size: 0.7rem;">Unidade:</small>
-        <strong id="unidade-nome" style="display:block; color: white; font-size: 1.1rem;">---</strong><br>
-        <small style="color:#94a3b8; display: block; margin-bottom: 4px;">CNPJ:</small>
-        <span id="unidade-cnpj" style="color: #cbd5e1; font-size: 0.85rem; font-family: monospace;">--.---.---/----.--</span>
-    </div>
-
-
-
-
-    <button onclick="sair()" style="background:none; border:1px solid #334155; color:#94a3b8; width:100%; padding:10px; border-radius:8px; cursor:pointer; transition: 0.3s;" onmouseover="this.style.borderColor='#ef4444'; this.style.color='#ef4444'" onmouseout="this.style.borderColor='#334155'; this.style.color='#94a3b8'">
-        <i class="fas fa-sign-out-alt"></i> Sair
-    </button>
-</nav>
-
-<main class="main">
-    <header style="display:flex; justify-content:space-between; margin-bottom:2.5rem;" class="no-print">
-        <h1>Gestão de Alunos</h1>
-        <button class="btn" onclick="abrirModalAluno()"><i class="fas fa-user-plus"></i> Novo Aluno</button>
-    </header>
-
-    <div class="card">
-        <table>
-            <thead>
-                <tr>
-                    <th>Aluno / Matrícula</th>
-                    <th>Série / Turma</th>
-                    <th>Responsável</th>
-                    <th>Acesso</th>
-                    <th style="text-align: right;">Ações</th>
-                </tr>
-            </thead>
-            <tbody id="lista-alunos"></tbody>
-        </table>
-    </div>
-</main>
-
-<!-- Modal Aluno -->
-<div id="modalAluno" class="modal no-print">
-    <div class="modal-content">
-        <h3 id="titulo-modal">Cadastrar Aluno</h3>
-        <input type="text" id="a-nome" placeholder="Nome Completo do Aluno">
-        <input type="text" id="a-matricula" placeholder="Nº Matrícula (Apenas números)">
-        <input type="text" id="a-turma" placeholder="Série/Turma (Ex: 9º Ano A)">
-        <input type="text" id="a-responsavel" placeholder="Nome do Responsável">
-        <input type="text" id="a-senha" placeholder="Senha para Totem/Portal">
-        
-        <button class="btn" style="width:100%; margin-top:1rem;" onclick="salvarAluno()">Salvar Aluno</button>
-        <button onclick="fecharModais()" style="width:100%; background:none; border:none; margin-top:10px; cursor:pointer; color:#64748b;">Cancelar</button>
-    </div>
-</div>
-
-<!-- Modal QR Aluno -->
-<div id="modalQR" class="modal">
-    <div class="modal-content" style="max-width: 400px; text-align: center;">
-        <h3 class="no-print">Cartão de Identificação</h3>
-        <p id="qr-nome-aluno" style="margin: 15px 0; font-weight: bold; color: var(--primary); font-size: 1.2rem;"></p>
-        <div id="qrcode-container" style="display: inline-block; padding: 10px; border: 1px solid #eee;"></div>
-        <div class="no-print" style="margin-top: 20px;">
-            <button class="btn" style="width:100%;" onclick="window.print()">Imprimir Cartão</button>
-            <button class="btn" style="width:100%; margin-top:10px; background:none; color:#64748b;" onclick="fecharModais()">Fechar</button>
-        </div>
-    </div>
+<div id="feedback-tela" class="status-msg">
+    <div class="icon-check">✔</div>
+    <h2 id="msg-aluno" style="font-size: 2rem;">PRESENÇA CONFIRMADA!</h2>
+    <p id="nome-aluno-feedback" style="color: var(--primary); font-size: 1.5rem; margin-top: 10px;"></p>
 </div>
 
 <script>
     const API_URL = "https://pontoback-tau.vercel.app/api";
-    let config = JSON.parse(localStorage.getItem("config_gestor_alunos"));
-    let alunosAtuais = [];
+    let config = JSON.parse(localStorage.getItem("config_tablet_alunos"));
 
-    function iniciar() {
-        if (config) {
-            document.getElementById('login-area').style.display = 'none';
-            document.getElementById('unidade-nome').innerText = config.nome;
-            carregarAlunos();
-        }
+    function iniciarCamera() {
+        const scanner = new Html5QrcodeScanner("reader", { fps: 10, qrbox: 250 });
+        scanner.render(onScanSuccess);
     }
 
-    async function fazerLogin() {
-        const cnpj = document.getElementById('l-cnpj').value.replace(/\D/g, '');
-        const senha = document.getElementById('l-senha').value;
-        const res = await fetch(`${API_URL}/clientes/login-tablet`, {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ cnpj, senha })
-        });
-        if (res.ok) {
-            const dados = await res.json();
-            localStorage.setItem("config_gestor_alunos", JSON.stringify({ id: dados.id, nome: dados.nome }));
-            location.reload();
-        } else { alert("Acesso negado."); }
-    }
+    async function onScanSuccess(decodedText) {
+        if (window.processando) return;
+        window.processando = true;
 
-    async function carregarAlunos() {
         try {
-            // Reutilizando a rota de busca por cliente_id, mas buscando na collection de alunos (ajuste no backend necessário)
-            const res = await fetch(`${API_URL}/alunos/unidade/${config.id}`);
-            alunosAtuais = await res.json();
-            document.getElementById('lista-alunos').innerHTML = alunosAtuais.map(a => `
-                <tr>
-                    <td><strong>${a.nome}</strong><br><small>${a.matricula}</small></td>
-                    <td>${a.turma || 'Não definida'}</td>
-                    <td>${a.responsavel || '---'}</td>
-                    <td><small>Senha: <b>${a.senha || '123'}</b></small></td>
-                    <td style="text-align: right;">
-                        <button onclick="prepararEdicao('${a.matricula}')" class="btn-icon" style="color:var(--info)"><i class="fas fa-edit"></i></button>
-                        <button onclick="abrirQR('${a.matricula}', '${a.nome}')" class="btn-icon" style="color:#000"><i class="fas fa-qrcode"></i></button>
-                        <button onclick="removerAluno('${a.matricula}')" class="btn-icon" style="color:var(--danger)"><i class="fas fa-trash"></i></button>
-                    </td>
-                </tr>
-            `).join('');
-        } catch (e) { console.error("Erro ao listar alunos."); }
-    }
+            // Rota de presença que você adicionará no index.py
+            const res = await fetch(`${API_URL}/presenca/registrar`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    id_aluno: decodedText,
+                    id_cliente: config.id
+                })
+            });
 
-    async function salvarAluno() {
-        const isEdit = document.getElementById('a-matricula').disabled;
-        const matricula = document.getElementById('a-matricula').value.replace(/\D/g, '');
-        const dados = {
-            nome: document.getElementById('a-nome').value,
-            matricula: matricula,
-            turma: document.getElementById('a-turma').value,
-            responsavel: document.getElementById('a-responsavel').value,
-            senha: document.getElementById('a-senha').value,
-            cliente_id: config.id
-        };
-
-        const res = await fetch(isEdit ? `${API_URL}/alunos/${matricula}` : `${API_URL}/alunos`, {
-            method: isEdit ? 'PUT' : 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify(dados)
-        });
-
-        if(res.ok) { fecharModais(); carregarAlunos(); }
-    }
-
-    function prepararEdicao(mat) {
-        const a = alunosAtuais.find(x => x.matricula === mat);
-        document.getElementById('a-nome').value = a.nome;
-        document.getElementById('a-matricula').value = a.matricula;
-        document.getElementById('a-matricula').disabled = true;
-        document.getElementById('a-turma').value = a.turma || "";
-        document.getElementById('a-responsavel').value = a.responsavel || "";
-        document.getElementById('a-senha').value = a.senha || "";
-        document.getElementById('titulo-modal').innerText = "Editar Aluno";
-        document.getElementById('modalAluno').style.display = 'flex';
-    }
-
-    function abrirQR(mat, nome) {
-        document.getElementById('qr-nome-aluno').innerText = nome;
-        const container = document.getElementById('qrcode-container');
-        container.innerHTML = "";
-        new QRCode(container, { text: mat, width: 220, height: 220 });
-        document.getElementById('modalQR').style.display = 'flex';
-    }
-
-    async function removerAluno(mat) {
-        if(confirm("Excluir este aluno?")) {
-            await fetch(`${API_URL}/alunos/${mat}`, { method: 'DELETE' });
-            carregarAlunos();
+            const data = await res.json();
+            if (res.ok) {
+                exibirSucesso(data.aluno);
+            } else {
+                alert(data.erro || "Erro na leitura");
+            }
+        } catch (e) {
+            alert("Falha na conexão com o servidor");
+        } finally {
+            setTimeout(() => { window.processando = false; }, 3000);
         }
     }
 
-    function abrirModalAluno() {
-        document.getElementById('a-matricula').disabled = false;
-        document.querySelectorAll('#modalAluno input').forEach(i => i.value = "");
-        document.getElementById('titulo-modal').innerText = "Cadastrar Aluno";
-        document.getElementById('modalAluno').style.display = 'flex';
+    function exibirSucesso(nome) {
+        const tela = document.getElementById('feedback-tela');
+        document.getElementById('nome-aluno-feedback').innerText = nome;
+        tela.style.display = 'flex';
+
+        setTimeout(() => {
+            tela.style.display = 'none';
+        }, 4000);
     }
 
-    function fecharModais() {
-        document.querySelectorAll('.modal').forEach(m => m.style.display = 'none');
+    // Lógica de Ativação (igual a que você já usa no PontoBack)
+    if (!config) {
+        const code = prompt("Digite o código de ativação da unidade:");
+        if (code) {
+            // Aqui você pode buscar os dados da unidade via API
+            localStorage.setItem("config_tablet_alunos", JSON.stringify({id: "ID_DA_ESCOLA", nome: "Escola Exemplo"}));
+            location.reload();
+        }
+    } else {
+        document.getElementById('nome-escola').innerText = config.nome;
+        iniciarCamera();
     }
-
-    function sair() { localStorage.clear(); location.reload(); }
-    iniciar();
 </script>
 </body>
 </html>
