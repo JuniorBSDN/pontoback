@@ -253,26 +253,18 @@ def gerenciar_aluno(matricula):
 @app.route('/api/presencas', methods=['POST'])
 def registrar_presenca():
     dados = request.json
-    id_aluno = str(dados.get('id_aluno'))
-    id_cliente = dados.get('id_cliente') # MUITO IMPORTANTE: O ID da escola
+    id_aluno = str(dados.get('id_aluno')).strip()
+    # O segredo está aqui: garanta que o nome do campo seja igual ao que o gestor busca
+    cliente_id = dados.get('id_cliente') or dados.get('cliente_id') 
 
-    # Busca aluno para confirmar que existe e pegar os dados para o modal
-    aluno_ref = db.collection('alunos').document(id_aluno).get()
-    if not aluno_ref.exists:
-        return jsonify({"erro": "Aluno não cadastrado"}), 404
-
-    aluno_data = aluno_ref.to_dict()
-
-    # Grava a presença com o vínculo da escola (cliente_id)
+    # Ao salvar no Firestore:
     nova_presenca = {
         "id_aluno": id_aluno,
-        "cliente_id": id_cliente, # O Gestor usa este campo para filtrar
+        "cliente_id": cliente_id, # Use 'cliente_id' para manter o padrão do seu sistema
         "timestamp": datetime.now().isoformat(),
         "status": "Presente"
     }
     db.collection('presencas').add(nova_presenca)
-
-    return jsonify({"status": "sucesso", "aluno": aluno_data}), 201
 
 if __name__ == '__main__':
     app.run(debug=True, port=5000)
