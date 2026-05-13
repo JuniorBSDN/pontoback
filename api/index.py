@@ -28,7 +28,7 @@ db = firestore.client()
 def get_agora_br():
     return datetime.now(timezone(timedelta(hours=-3)))
 
-# --- LOGIN ADMINISTRATIVO (DONO DO SISTEMA) ---
+# --- LOGIN ADMINISTRATIVO (DONO) ---
 @app.route('/api/admin/login', methods=['POST'])
 def login_admin():
     dados = request.json
@@ -39,7 +39,7 @@ def login_admin():
         return jsonify({"auth": True}), 200
     return jsonify({"erro": "Senha incorreta"}), 401
 
-# --- GERENCIAMENTO DE CLIENTES (UNIDADES) ---
+# --- GERENCIAMENTO DE CLIENTES ---
 @app.route('/api/clientes', methods=['GET', 'POST'])
 def gerenciar_clientes():
     if request.method == 'POST':
@@ -100,9 +100,9 @@ def registrar_presenca():
     try:
         dados = request.json
         matricula = "".join(filter(str.isdigit, str(dados.get('id_aluno', ''))))
-        # Padroniza para cliente_id para que o gestor consiga filtrar
         cliente_id = dados.get('id_cliente') or dados.get('cliente_id')
 
+        # Busca aluno para o Tablet mostrar o nome na tela
         a_ref = db.collection('alunos').document(matricula).get()
         if not a_ref.exists:
             return jsonify({"erro": "Matrícula não encontrada"}), 404
@@ -113,7 +113,7 @@ def registrar_presenca():
         nova_presenca = {
             "id_aluno": matricula,
             "aluno": aluno.get('nome'),
-            "cliente_id": cliente_id,
+            "cliente_id": cliente_id, # Campo fundamental para o Gestor filtrar
             "timestamp": agora.isoformat(),
             "status": "PRESENTE"
         }
@@ -127,14 +127,14 @@ def registrar_presenca():
     except Exception as e:
         return jsonify({"erro": str(e)}), 500
 
-# --- LISTAGEM DE PRESENÇAS (PARA O GESTOR) ---
+# --- LISTAGEM DE PRESENÇAS PARA O GESTOR ---
 @app.route('/api/presencas/unidade/<id_unidade>', methods=['GET'])
 def listar_presencas_unidade(id_unidade):
     try:
-        # Busca presenças filtrando por cliente_id
+        # Busca todas as presenças filtrando por cliente_id
         docs = db.collection('presencas').where('cliente_id', '==', id_unidade).stream()
         lista = [doc.to_dict() for doc in docs]
-        lista.sort(key=lambda x: x['timestamp'], reverse=True)
+        lista.sort(key=lambda x: x.get('timestamp', ''), reverse=True)
         return jsonify(lista), 200
     except Exception as e:
         return jsonify({"erro": str(e)}), 500
@@ -144,7 +144,7 @@ def historico_aluno(matricula):
     try:
         docs = db.collection('presencas').where('id_aluno', '==', matricula).get()
         lista = [d.to_dict() for d in docs]
-        lista.sort(key=lambda x: x['timestamp'], reverse=True)
+        lista.sort(key=lambda x: x.get('timestamp', ''), reverse=True)
         return jsonify(lista), 200
     except Exception as e:
         return jsonify({"erro": str(e)}), 500
@@ -198,7 +198,7 @@ def registrar_ponto():
 
         docs = db.collection('pontos').where('id_funcionario', '==', cpf).get()
         pontos = [p.to_dict() for p in docs]
-        pontos.sort(key=lambda x: x['timestamp_servidor'], reverse=True)
+        pontos.sort(key=lambda x: x.get('timestamp_servidor', ''), reverse=True)
 
         tipo, horas = "ENTRADA", 0
         if pontos and pontos[0]['tipo'] == "ENTRADA":
@@ -216,7 +216,7 @@ def registrar_ponto():
     except Exception as e:
         return jsonify({"erro": str(e)}), 500
 
-# --- GERENCIAMENTO DE FUNCIONÁRIOS ---
+# --- GESTÃO DE FUNCIONÁRIOS ---
 @app.route('/api/funcionarios', methods=['POST'])
 def criar_func():
     try:
@@ -255,7 +255,7 @@ def relatorio_ponto_func(cpf):
     try:
         docs = db.collection('pontos').where('id_funcionario', '==', cpf).get()
         lista = [d.to_dict() for d in docs]
-        lista.sort(key=lambda x: x['timestamp_servidor'], reverse=True)
+        lista.sort(key=lambda x: x.get('timestamp_servidor', ''), reverse=True)
         return jsonify(lista), 200
     except Exception as e:
         return jsonify({"erro": str(e)}), 500
