@@ -44,14 +44,17 @@
             display: none;
             position: fixed;
             top: 0; left: 0; right: 0; bottom: 0;
-            background: var(--bg);
+            background: rgba(3, 7, 18, 0.95);
             z-index: 100;
             flex-direction: column;
             justify-content: center;
             align-items: center;
             animation: fadeIn 0.3s ease;
+            text-align: center;
+            padding: 20px;
         }
         .icon-check { font-size: 80px; color: var(--primary); margin-bottom: 20px; }
+        .icon-error { font-size: 80px; color: var(--danger); margin-bottom: 20px; }
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
     </style>
 </head>
@@ -64,12 +67,14 @@
     <div id="reader"></div>
 
     <p style="color: #64748b; font-size: 0.9rem;">Aproxime seu QR Code da câmera</p>
+    <button onclick="localStorage.clear(); location.reload();" style="margin-top: 20px; background: none; border: 1px solid #334155; color: #64748b; cursor: pointer; padding: 5px 10px; border-radius: 5px;">Deslogar</button>
 </div>
 
 <div id="feedback-tela" class="status-msg">
-    <div class="icon-check">✔</div>
-    <h2 id="msg-aluno" style="font-size: 2rem;">PRESENÇA CONFIRMADA!</h2>
+    <div id="feedback-icon" class="icon-check">✔</div>
+    <h2 id="feedback-titulo" style="font-size: 2rem;">PRESENÇA CONFIRMADA!</h2>
     <p id="nome-aluno-feedback" style="color: var(--primary); font-size: 1.5rem; margin-top: 10px;"></p>
+    <p id="detalhes-aluno" style="color: #94a3b8; margin-top: 5px;"></p>
 </div>
 
 <script>
@@ -77,46 +82,69 @@
     let config = JSON.parse(localStorage.getItem("config_tablet_alunos"));
 
     function iniciarCamera() {
-        const scanner = new Html5QrcodeScanner("reader", { fps: 10, qrbox: 250 });
+        const scanner = new Html5QrcodeScanner("reader", { 
+            fps: 10, 
+            qrbox: { width: 250, height: 250 },
+            aspectRatio: 1.0
+        });
         scanner.render(onScanSuccess);
     }
 
     async function onScanSuccess(decodedText) {
-      async function onScanSuccess(decodedText) {
-    if (window.processando) return;
-    window.processando = true;
+        if (window.processando) return;
+        window.processando = true;
 
-    // Limpa espaços ou caracteres invisíveis do QR Code
-    const matriculaLimpa = decodedText.trim();
+        const matriculaLimpa = decodedText.trim();
 
-    try {
-        const res = await fetch(`${API_URL}/presencas`, {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({
-                id_aluno: matriculaLimpa,
-                id_cliente: config.id // O ID da escola deve ser idêntico ao do Gestor
-            })
-        });
+        try {
+            const res = await fetch(`${API_URL}/presencas`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    id_aluno: matriculaLimpa,
+                    id_cliente: config.id
+                })
+            });
 
-        if (res.ok) {
             const data = await res.json();
-            // Preenche o modal de informações (seu feedback-tela)
-            document.getElementById('info-nome').innerText = data.aluno.nome;
-            document.getElementById('info-mat').innerText = data.aluno.matricula;
-            // ... resto do preenchimento ...
-            document.getElementById('feedback-tela').style.display = 'flex';
-        }
-    } catch (e) {
-        console.error("Erro no envio:", e);
-    } finally {
-        setTimeout(() => { window.processando = false; }, 5000);
-    }
-}
 
-    function exibirSucesso(nome) {
+            if (res.ok) {
+                exibirFeedback(true, data.aluno.nome, `Matrícula: ${data.aluno.matricula}`);
+            } else {
+                exibirFeedback(false, "ERRO", data.erro || "Aluno não encontrado");
+            }
+        } catch (e) {
+            console.error("Erro no envio:", e);
+            exibirFeedback(false, "ERRO DE CONEXÃO", "Verifique a internet");
+        } finally {
+            // Libera para nova leitura após 5 segundos
+            setTimeout(() => { window.processando = false; }, 5000);
+        }
+    }
+
+    function exibirFeedback(sucesso, titulo, subtitulo) {
         const tela = document.getElementById('feedback-tela');
-        document.getElementById('nome-aluno-feedback').innerText = nome;
+        const icon = document.getElementById('feedback-icon');
+        const tituloTxt = document.getElementById('feedback-titulo');
+        const nomeTxt = document.getElementById('nome-aluno-feedback');
+        const detalhesTxt = document.getElementById('detalhes-aluno');
+
+        if (sucesso) {
+            icon.innerHTML = "✔";
+            icon.className = "icon-check";
+            tituloTxt.innerText = "PRESENÇA CONFIRMADA!";
+            tituloTxt.style.color = "white";
+            nomeTxt.innerText = titulo;
+            detalhesTxt.innerText = subtitulo;
+        } else {
+            icon.innerHTML = "✖";
+            icon.className = "icon-error";
+            tituloTxt.innerText = titulo;
+            tituloTxt.style.color = "var(--danger)";
+            nomeTxt.innerText = subtitulo;
+            detalhesTxt.innerText = "";
+        }
+
         tela.style.display = 'flex';
 
         setTimeout(() => {
@@ -124,13 +152,18 @@
         }, 4000);
     }
 
-    // Lógica de Ativação (igual a que você já usa no PontoBack)
+    // Lógica de Ativação
     if (!config) {
-        const code = prompt("Digite o código de ativação da unidade:");
+        const code = prompt("Digite o TOKEN de ativação da unidade:");
         if (code) {
-            // Aqui você pode buscar os dados da unidade via API
-            localStorage.setItem("config_tablet_alunos", JSON.stringify({id: "ID_DA_ESCOLA", nome: "Escola Exemplo"}));
-            location.reload();
+            try {
+                // Decodifica o Token (que é um Base64 do JSON da unidade)
+                const unidade = JSON.parse(atob(code));
+                localStorage.setItem("config_tablet_alunos", JSON.stringify(unidade));
+                location.reload();
+            } catch(e) {
+                alert("Token de ativação inválido!");
+            }
         }
     } else {
         document.getElementById('nome-escola').innerText = config.nome;
