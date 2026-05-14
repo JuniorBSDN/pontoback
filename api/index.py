@@ -127,6 +127,17 @@ def registrar_presenca():
     except Exception as e:
         return jsonify({"erro": str(e)}), 500
 
+@app.route('/api/presencas/aluno/<matricula>', methods=['GET'])
+def historico_presencas_aluno(matricula):
+    try:
+        docs = db.collection('presencas').where('id_aluno', '==', str(matricula)).get()
+        lista = [d.to_dict() for d in docs]
+        # Ordena pela data mais recente
+        lista.sort(key=lambda x: x.get('timestamp', ''), reverse=True)
+        return jsonify(lista), 200
+    except Exception as e:
+        return jsonify({"erro": str(e)}), 500
+
 # --- LISTAGEM DE PRESENÇAS PARA O GESTOR ---
 @app.route('/api/presencas/unidade/<id_unidade>', methods=['GET'])
 def listar_presencas_unidade(id_unidade):
