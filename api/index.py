@@ -30,7 +30,10 @@ def get_agora_br():
     return datetime.now(timezone(timedelta(hours=-3)))
 
 
-# --- LOGIN ADMINISTRATIVO (DONO) ---
+# ==========================================
+# 1. ROTAS PARA: index.html (Painel Admin)
+# ==========================================
+
 @app.route('/api/admin/login', methods=['POST'])
 def login_admin():
     dados = request.json
@@ -42,38 +45,61 @@ def login_admin():
     return jsonify({"erro": "Senha incorreta"}), 401
 
 
-# --- GERENCIAMENTO DE CLIENTES ---
 @app.route('/api/clientes', methods=['GET', 'POST'])
 def gerenciar_clientes():
-    if request.method == 'POST':
-        dados = request.json
-        doc_ref = db.collection('clientes').document()
-        dados['id'] = doc_ref.id
-        if 'nome' in dados: dados['nome_fantasia'] = dados['nome']
-        doc_ref.set(dados)
-        return jsonify(dados), 201
+    try:
+        if request.method == 'POST':
+            dados = request.json
+            id_cliente = dados.get('id')
+            
+            # Se já possui ID, atualiza o documento existente (Ação de Editar do index.html)
+            if id_cliente:
+                doc_ref = db.collection('clientes').document(id_cliente)
+            else:
+                # Caso contrário, gera uma nova unidade (Ação de Criar do index.html)
+                doc_ref = db.collection('clientes').document()
+                dados['id'] = doc_ref.id
+                
+            if 'nome' in dados: 
+                dados['nome_fantasia'] = dados['nome']
+                
+            doc_ref.set(dados, merge=True)
+            return jsonify(dados), 201
 
-    docs = db.collection('clientes').stream()
-    return jsonify([doc.to_dict() for doc in docs])
+        # GET: Lista todas as unidades cadastradas no painel principal
+        docs = db.collection('clientes').stream()
+        return jsonify([doc.to_dict() for doc in docs]), 200
+    except Exception as e:
+        return jsonify({"erro": str(e)}), 500
 
 
 @app.route('/api/clientes/<id>', methods=['GET', 'PUT', 'DELETE'])
 def detalhe_cliente(id):
-    doc_ref = db.collection('clientes').document(id)
-    if request.method == 'PUT':
-        dados = request.json
-        dados['id'] = id
-        doc_ref.update(dados)
-        return jsonify({"status": "atualizado"}), 200
-    if request.method == 'DELETE':
-        doc_ref.delete()
-        return jsonify({"status": "excluido"}), 200
+    try:
+        doc_ref = db.collection('clientes').document(id)
+        
+        if request.method == 'PUT':
+            dados = request.json
+            dados['id'] = id
+            if 'nome' in dados: 
+                dados['nome_fantasia'] = dados['nome']
+            doc_ref.update(dados)
+            return jsonify({"status": "atualizado"}), 200
+            
+        if request.method == 'DELETE':
+            doc_ref.delete()
+            return jsonify({"status": "excluido"}), 200
 
-    doc = doc_ref.get()
-    return jsonify(doc.to_dict()) if doc.exists else ({'erro': '404'}, 404)
+        doc = doc_ref.get()
+        return jsonify(doc.to_dict()) if doc.exists else ({'erro': 'Unidade não encontrada'}, 404)
+    except Exception as e:
+        return jsonify({"erro": str(e)}), 500
 
 
-# --- LOGIN DO TABLET / UNIDADE ---
+# =======================================================
+# 2. ROTAS PARA: tablet.html & tabletAluno.html (Logins)
+# =======================================================
+
 @app.route('/api/clientes/login-tablet', methods=['POST'])
 def login_unidade():
     try:
@@ -98,42 +124,10 @@ def login_unidade():
         return jsonify({"erro": str(e)}), 500
 
 
-# --- REGISTRO DE PONTO (FUNCIONÁRIOS) ---
-@app.route('/api/ponto/registrar', methods=['POST'])
-def registrar_ponto():
-    try:
-        dados = request.json
-        cpf = "".join(filter(str.isdigit, str(dados.get('id_funcionario', ''))))
-        f_ref = db.collection('funcionarios').document(cpf).get()
+# =======================================================
+# 3. ROTAS PARA: gestor.html & tablet.html (Funcionários)
+# =======================================================
 
-        if not f_ref.exists:
-            return jsonify({"erro": "CPF não encontrado"}), 404
-
-        func = f_ref.to_dict()
-        agora = get_agora_br()
-
-        docs = db.collection('pontos').where('id_funcionario', '==', cpf).get()
-        pontos = [p.to_dict() for p in docs]
-        pontos.sort(key=lambda x: x['timestamp_servidor'], reverse=True)
-
-        tipo, horas = "ENTRADA", 0
-        if pontos and pontos[0]['tipo'] == "ENTRADA":
-            tipo = "SAÍDA"
-            inicio = datetime.fromisoformat(pontos[0]['timestamp_servidor'])
-            if inicio.tzinfo is None: inicio = inicio.replace(tzinfo=timezone(timedelta(hours=-3)))
-            horas = round((agora - inicio).total_seconds() / 3600, 2)
-
-        novo_ponto = {
-            "id_funcionario": cpf, "funcionario": func['nome'], "id_cliente": dados.get('id_cliente'),
-            "tipo": tipo, "timestamp_servidor": agora.isoformat(), "horas_trabalhadas": horas
-        }
-        db.collection('pontos').add(novo_ponto)
-        return jsonify({"tipo": tipo, "funcionario": func['nome'], "horas": horas}), 200
-    except Exception as e:
-        return jsonify({"erro": str(e)}), 500
-
-
-# --- FUNCIONÁRIOS (GERENCIAMENTO) ---
 @app.route('/api/funcionarios', methods=['POST'])
 def criar_func():
     try:
@@ -173,6 +167,45 @@ def gerenciar_func(cpf):
         return jsonify({"erro": str(e)}), 500
 
 
+@app.route('/api/ponto/registrar', methods=['POST'])
+def registrar_ponto():
+    try:
+        dados = request.json
+        cpf = "".join(filter(str.isdigit, str(dados.get('id_funcionario', ''))))
+        f_ref = db.collection('funcionarios').document(cpf).get()
+
+        if not f_ref.exists:
+            return jsonify({"erro": "CPF não cadastrado ou não encontrado"}), 404
+
+        func = f_ref.to_dict()
+        agora = get_agora_br()
+
+        docs = db.collection('pontos').where('id_funcionario', '==', cpf).get()
+        pontos = [p.to_dict() for p in docs]
+        pontos.sort(key=lambda x: x['timestamp_servidor'], reverse=True)
+
+        tipo, horas = "ENTRADA", 0
+        if pontos and pontos[0]['tipo'] == "ENTRADA":
+            tipo = "SAÍDA"
+            inicio = datetime.fromisoformat(pontos[0]['timestamp_servidor'])
+            if inicio.tzinfo is None: 
+                inicio = inicio.replace(tzinfo=timezone(timedelta(hours=-3)))
+            horas = round((agora - inicio).total_seconds() / 3600, 2)
+
+        novo_ponto = {
+            "id_funcionario": cpf, 
+            "funcionario": func['nome'], 
+            "id_cliente": dados.get('id_cliente'),
+            "tipo": tipo, 
+            "timestamp_servidor": agora.isoformat(), 
+            "horas_trabalhadas": horas
+        }
+        db.collection('pontos').add(novo_ponto)
+        return jsonify({"tipo": tipo, "funcionario": func['nome'], "horas": horas}), 200
+    except Exception as e:
+        return jsonify({"erro": str(e)}), 500
+
+
 @app.route('/api/ponto/funcionario/<cpf>', methods=['GET'])
 def relatorio(cpf):
     try:
@@ -184,12 +217,16 @@ def relatorio(cpf):
         return jsonify({"erro": str(e)}), 500
 
 
-# --- GESTÃO DE ALUNOS ---
+# ============================================================
+# 4. ROTAS PARA: gestaoAlunos.html & tabletAluno.html (Alunos)
+# ============================================================
+
 @app.route('/api/alunos', methods=['POST'])
 def cadastrar_aluno():
     try:
         dados = request.json
         matricula = "".join(filter(str.isdigit, str(dados.get('matricula', ''))))
+        dados['matricula'] = matricula
         db.collection('alunos').document(matricula).set(dados)
         return jsonify(dados), 201
     except Exception as e:
@@ -210,9 +247,11 @@ def gerenciar_aluno(matricula):
     try:
         mat_limpa = "".join(filter(str.isdigit, str(matricula)))
         doc_ref = db.collection('alunos').document(mat_limpa)
+        
         if request.method == 'PUT':
             doc_ref.update(request.json)
             return jsonify({"status": "atualizado"}), 200
+            
         if request.method == 'DELETE':
             doc_ref.delete()
             return jsonify({"status": "excluido"}), 200
@@ -220,7 +259,6 @@ def gerenciar_aluno(matricula):
         return jsonify({"erro": str(e)}), 500
 
 
-# --- REGISTRO DE PRESENÇA (ALUNOS - CHAMADO PELO TOTEM) ---
 @app.route('/api/presencas', methods=['POST'])
 def registrar_presenca_aluno():
     try:
@@ -243,6 +281,7 @@ def registrar_presenca_aluno():
         }
         db.collection('presencas').add(nova_presenca)
 
+        # Retorna o status de sucesso e os dados do aluno para o totem exibir na tela
         return jsonify({"status": "sucesso", "aluno": aluno_data}), 201
     except Exception as e:
         return jsonify({"erro": str(e)}), 500
