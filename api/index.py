@@ -96,6 +96,7 @@ def detalhe_cliente(id):
         return jsonify({"erro": str(e)}), 500
 
 
+
 # =======================================================
 # 2. ROTAS PARA: tablet.html & tabletAluno.html (Logins)
 # =======================================================
@@ -111,12 +112,17 @@ def login_unidade():
         for doc in docs:
             c = doc.to_dict()
             cnpj_banco = "".join(filter(str.isdigit, str(c.get('cnpj', ''))))
-            senha_banco = str(c.get('senha_acesso') or c.get('senha') or '').strip()
+            
+            # Tenta pegar qualquer variação de senha configurada no index.html
+            senha_banco = str(c.get('senha_acesso') or c.get('senha') or c.get('senha_tablet') or '').strip()
 
             if cnpj_banco == cnpj_input and senha_banco == senha_input:
+                # Retorna a estrutura exata que AMBOS os tablets (tablet e tabletAluno) esperam
                 return jsonify({
                     "id": doc.id,
-                    "nome": c.get('nome_fantasia') or c.get('nome') or "Unidade"
+                    "cliente_id": doc.id,  # Garante compatibilidade se o JS procurar por cliente_id
+                    "nome": c.get('nome_fantasia') or c.get('nome') or "Unidade",
+                    "nome_fantasia": c.get('nome_fantasia') or c.get('nome') or "Unidade"
                 }), 200
 
         return jsonify({"erro": "CNPJ ou Senha incorretos"}), 401
