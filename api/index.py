@@ -73,7 +73,7 @@ def detalhe_cliente(id):
     return jsonify(doc.to_dict()) if doc.exists else ({'erro': '404'}, 404)
 
 
-# --- LOGIN DO TABLET / UNIDADE (VERSÃO PARA SIDEBAR COMPLETA) ---
+# --- LOGIN DO TABLET / UNIDADE ---
 @app.route('/api/clientes/login-tablet', methods=['POST'])
 def login_unidade():
     try:
@@ -85,15 +85,12 @@ def login_unidade():
         for doc in docs:
             c = doc.to_dict()
             cnpj_banco = "".join(filter(str.isdigit, str(c.get('cnpj', ''))))
-            # Verifica 'senha_acesso' ou 'senha'
             senha_banco = str(c.get('senha_acesso') or c.get('senha') or '').strip()
 
             if cnpj_banco == cnpj_input and senha_banco == senha_input:
                 return jsonify({
                     "id": doc.id,
-                    "nome": c.get('nome_fantasia') or c.get('nome') or "Unidade",
-                    "cnpj": c.get('cnpj') or "00.000.000/0000-00",  # ADICIONE ESTA LINHA
-                    "responsavel": c.get('responsavel') or "Não informado"  # ADICIONE ESTA LINHA
+                    "nome": c.get('nome_fantasia') or c.get('nome') or "Unidade"
                 }), 200
 
         return jsonify({"erro": "CNPJ ou Senha incorretos"}), 401
@@ -101,7 +98,7 @@ def login_unidade():
         return jsonify({"erro": str(e)}), 500
 
 
-# --- REGISTO DE PONTO (FUNCIONÁRIOS) ---
+# --- REGISTRO DE PONTO (FUNCIONÁRIOS) ---
 @app.route('/api/ponto/registrar', methods=['POST'])
 def registrar_ponto():
     try:
@@ -132,33 +129,6 @@ def registrar_ponto():
         }
         db.collection('pontos').add(novo_ponto)
         return jsonify({"tipo": tipo, "funcionario": func['nome'], "horas": horas}), 200
-    except Exception as e:
-        return jsonify({"erro": str(e)}), 500
-
-
-# --- REGISTO DE PRESENÇA (ALUNOS) ---
-@app.route('/api/presenca/registrar', methods=['POST'])
-def registrar_presenca():
-    try:
-        dados = request.json
-        matricula = "".join(filter(str.isdigit, str(dados.get('id_aluno', ''))))
-        a_ref = db.collection('alunos').document(matricula).get()
-
-        if not a_ref.exists:
-            return jsonify({"erro": "Matrícula não encontrada"}), 404
-
-        aluno = a_ref.to_dict()
-        agora = get_agora_br()
-
-        nova_presenca = {
-            "id_aluno": matricula,
-            "aluno": aluno['nome'],
-            "id_cliente": dados.get('id_cliente'),
-            "timestamp": agora.isoformat(),
-            "status": "PRESENTE"
-        }
-        db.collection('presencas').add(nova_presenca)
-        return jsonify({"status": "PRESENTE", "aluno": aluno['nome']}), 200
     except Exception as e:
         return jsonify({"erro": str(e)}), 500
 
@@ -250,29 +220,33 @@ def gerenciar_aluno(matricula):
         return jsonify({"erro": str(e)}), 500
 
 
+# --- REGISTRO DE PRESENÇA (ALUNOS - CHAMADO PELO TOTEM) ---
 @app.route('/api/presencas', methods=['POST'])
-def registrar_presenca():
-    dados = request.json
-    id_aluno = str(dados.get('id_aluno'))
-    id_cliente = dados.get('id_cliente') # MUITO IMPORTANTE: O ID da escola
+def registrar_presenca_aluno():
+    try:
+        dados = request.json
+        id_aluno = str(dados.get('id_aluno')).strip()
+        id_cliente = dados.get('id_cliente')
 
-    # Busca aluno para confirmar que existe e pegar os dados para o modal
-    aluno_ref = db.collection('alunos').document(id_aluno).get()
-    if not aluno_ref.exists:
-        return jsonify({"erro": "Aluno não cadastrado"}), 404
+        aluno_ref = db.collection('alunos').document(id_aluno).get()
+        if not aluno_ref.exists:
+            return jsonify({"erro": "Aluno não cadastrado"}), 404
 
-    aluno_data = aluno_ref.to_dict()
+        aluno_data = aluno_ref.to_dict()
+        agora = get_agora_br()
 
-    # Grava a presença com o vínculo da escola (cliente_id)
-    nova_presenca = {
-        "id_aluno": id_aluno,
-        "cliente_id": id_cliente, # O Gestor usa este campo para filtrar
-        "timestamp": datetime.now().isoformat(),
-        "status": "Presente"
-    }
-    db.collection('presencas').add(nova_presenca)
+        nova_presenca = {
+            "id_aluno": id_aluno,
+            "cliente_id": id_cliente,
+            "timestamp": agora.isoformat(),
+            "status": "Presente"
+        }
+        db.collection('presencas').add(nova_presenca)
 
-    return jsonify({"status": "sucesso", "aluno": aluno_data}), 201
+        return jsonify({"status": "sucesso", "aluno": aluno_data}), 201
+    except Exception as e:
+        return jsonify({"erro": str(e)}), 500
+
 
 if __name__ == '__main__':
     app.run(debug=True, port=5000)
