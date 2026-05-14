@@ -38,7 +38,19 @@
             .no-print { display: none !important; }
             .sidebar { display: none !important; }
             .main { margin-left: 0 !important; width: 100% !important; padding: 0 !important; }
-            .modal-content { box-shadow: none !important; border: none !important; }
+            .modal {
+                position: absolute !important;
+                background: white !important;
+                backdrop-filter: none !important;
+                display: block !important;
+                padding: 0 !important;
+            }
+            .modal-content {
+                box-shadow: none !important;
+                border: none !important;
+                max-width: 100% !important;
+                padding: 0 !important;
+            }
         }
     </style>
 </head>
@@ -63,9 +75,6 @@
         <small style="color:#94a3b8; display: block; margin-bottom: 4px;">CNPJ:</small>
         <span id="unidade-cnpj" style="color: #cbd5e1; font-size: 0.85rem; font-family: monospace;">--.---.---/----.--</span>
     </div>
-
-
-
 
     <button onclick="sair()" style="background:none; border:1px solid #334155; color:#94a3b8; width:100%; padding:10px; border-radius:8px; cursor:pointer; transition: 0.3s;" onmouseover="this.style.borderColor='#ef4444'; this.style.color='#ef4444'" onmouseout="this.style.borderColor='#334155'; this.style.color='#94a3b8'">
         <i class="fas fa-sign-out-alt"></i> Sair
@@ -94,7 +103,6 @@
     </div>
 </main>
 
-<!-- Modal Aluno -->
 <div id="modalAluno" class="modal no-print">
     <div class="modal-content">
         <h3 id="titulo-modal">Cadastrar Aluno</h3>
@@ -109,7 +117,6 @@
     </div>
 </div>
 
-<!-- Modal QR Aluno -->
 <div id="modalQR" class="modal">
     <div class="modal-content" style="max-width: 400px; text-align: center;">
         <h3 class="no-print">Cartão de Identificação</h3>
@@ -122,10 +129,9 @@
     </div>
 </div>
 
-
-<div id="modalRelatorio" class="modal no-print">
+<div id="modalRelatorio" class="modal">
     <div class="modal-content" style="max-width: 550px; border: 1px solid var(--primary);">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;" class="no-print">
             <h3 style="margin: 0; color: var(--sidebar-bg);">Histórico Detalhado</h3>
             <button onclick="window.print()" class="btn" style="background: #64748b; padding: 5px 12px; font-size: 12px;">
                 <i class="fas fa-print"></i> Imprimir
@@ -146,21 +152,22 @@
                         <th style="text-align: left; padding: 12px; font-size: 13px;">Local</th>
                     </tr>
                 </thead>
-                <tbody id="corpo-relatorio">
-                    </tbody>
+                <tbody id="corpo-relatorio"></tbody>
             </table>
         </div>
 
-        <div style="margin-top: 20px; display: flex; justify-content: space-between; align-items: center;">
+        <div style="margin-top: 20px; display: flex; justify-content: space-between; align-items: center;" class="no-print">
             <span id="total-registros" style="font-size: 0.85rem; font-weight: 600; color: #475569;">Total: 0 registros</span>
             <button class="btn" style="padding: 10px 30px;" onclick="fecharModais()">Fechar</button>
         </div>
     </div>
 </div>
+
 <script>
     const API_URL = "https://pontoback-tau.vercel.app/api";
     let config = JSON.parse(localStorage.getItem("config_gestor_alunos"));
     let alunosAtuais = [];
+    let matriculaEdicao = ""; // Guarda com segurança a matrícula para rotas PUT
 
     function iniciar() {
         const configLocal = JSON.parse(localStorage.getItem("config_gestor_alunos"));
@@ -218,7 +225,9 @@
 
     async function salvarAluno() {
         const isEdit = document.getElementById('a-matricula').disabled;
-        const matricula = document.getElementById('a-matricula').value.replace(/\D/g, '');
+        // Evita erro de leitura em campos desabilitados capturando a variável segura
+        const matricula = isEdit ? matriculaEdicao : document.getElementById('a-matricula').value.replace(/\D/g, '');
+
         const dados = {
             nome: document.getElementById('a-nome').value,
             matricula: matricula,
@@ -227,6 +236,7 @@
             senha: document.getElementById('a-senha').value,
             cliente_id: config.id
         };
+
         const res = await fetch(isEdit ? `${API_URL}/alunos/${matricula}` : `${API_URL}/alunos`, {
             method: isEdit ? 'PUT' : 'POST',
             headers: {'Content-Type': 'application/json'},
@@ -235,7 +245,6 @@
         if(res.ok) { fecharModais(); carregarAlunos(); }
     }
 
-    // --- FUNÇÃO DE RELATÓRIO DEFINITIVA (CORRETA) ---
     async function abrirRelatorio(matricula, nome) {
         const tbody = document.getElementById('corpo-relatorio');
         const totalTxt = document.getElementById('total-registros');
@@ -243,7 +252,6 @@
         document.getElementById('rel-nome-aluno').innerText = nome;
         document.getElementById('rel-matricula-aluno').innerText = `ID/Matrícula: ${matricula}`;
 
-        // colspan="3" porque a tabela tem 3 colunas (Data, Tipo, Local)
         tbody.innerHTML = '<tr><td colspan="3" style="text-align:center; padding:30px;">Buscando registros...</td></tr>';
         document.getElementById('modalRelatorio').style.display = 'flex';
 
@@ -260,13 +268,16 @@
             totalTxt.innerText = `Total: ${dados.length} registros encontrados`;
 
             tbody.innerHTML = dados.map(p => {
-                const dataObj = new Date(p.timestamp);
+                // Formata e trata compatibilidade da string ISO retornada do backend Python
+                const timestampLimpo = p.timestamp ? p.timestamp.replace(" ", "T") : new Date();
+                const dataObj = new Date(timestampLimpo);
                 const dataFormatada = dataObj.toLocaleDateString('pt-BR');
                 const horaFormatada = dataObj.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 
-                const isEntrada = p.status === 'ENTRADA';
-                const corStatus = isEntrada ? '#10b981' : '#3b82f6';
-                const iconStatus = isEntrada ? 'fa-arrow-right-to-bracket' : 'fa-arrow-right-from-bracket';
+                const statusTexto = p.status ? p.status.toUpperCase() : 'PRESENTE';
+                const isPresente = statusTexto === 'PRESENTE' || statusTexto === 'ENTRADA';
+                const corStatus = isPresente ? '#10b981' : '#3b82f6';
+                const iconStatus = isPresente ? 'fa-user-check' : 'fa-arrow-right-from-bracket';
 
                 return `
                     <tr style="border-bottom: 1px solid #f1f5f9;">
@@ -276,7 +287,7 @@
                         </td>
                         <td style="padding: 14px; text-align: center;">
                             <span style="background: ${corStatus}15; color: ${corStatus}; padding: 5px 10px; border-radius: 6px; font-size: 0.7rem; font-weight: 800; display: inline-flex; align-items: center; gap: 5px; border: 1px solid ${corStatus}30;">
-                                <i class="fas ${iconStatus}"></i> ${p.status || 'REGISTRO'}
+                                <i class="fas ${iconStatus}"></i> ${statusTexto}
                             </span>
                         </td>
                         <td style="padding: 14px; font-size: 0.8rem; color: #64748b;">Totem Unidade</td>
@@ -289,9 +300,9 @@
         }
     }
 
-    // Funções Auxiliares
     function prepararEdicao(mat) {
         const a = alunosAtuais.find(x => x.matricula === mat);
+        matriculaEdicao = mat; // Salva para o escopo global da requisição PUT
         document.getElementById('a-nome').value = a.nome;
         document.getElementById('a-matricula').value = a.matricula;
         document.getElementById('a-matricula').disabled = true;
