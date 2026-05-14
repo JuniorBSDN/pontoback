@@ -124,21 +124,37 @@
 
 
 <div id="modalRelatorio" class="modal no-print">
-    <div class="modal-content" style="max-width: 500px;">
-        <h3 style="margin-bottom: 1rem;">Histórico de Presença</h3>
-        <p id="rel-nome-aluno" style="font-weight: bold; color: var(--primary); margin-bottom: 10px;"></p>
-        <div style="max-height: 300px; overflow-y: auto; border: 1px solid var(--border); border-radius: 8px;">
-            <table style="margin-top: 0;">
-                <thead>
+    <div class="modal-content" style="max-width: 550px; border: 1px solid var(--primary);">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+            <h3 style="margin: 0; color: var(--sidebar-bg);">Histórico Detalhado</h3>
+            <button onclick="window.print()" class="btn" style="background: #64748b; padding: 5px 12px; font-size: 12px;">
+                <i class="fas fa-print"></i> Imprimir
+            </button>
+        </div>
+
+        <div style="background: #f8fafc; padding: 15px; border-radius: 10px; border-left: 4px solid var(--primary); margin-bottom: 20px;">
+            <p id="rel-nome-aluno" style="font-weight: 700; color: var(--sidebar-bg); font-size: 1.2rem; margin: 0;"></p>
+            <p id="rel-matricula-aluno" style="font-size: 0.9rem; color: #64748b; margin-top: 5px;"></p>
+        </div>
+
+        <div style="max-height: 350px; overflow-y: auto; border: 1px solid var(--border); border-radius: 12px;">
+            <table style="width: 100%; border-collapse: collapse; margin: 0;">
+                <thead style="position: sticky; top: 0; background: #f1f5f9; z-index: 10;">
                     <tr>
-                        <th>Data e Hora</th>
-                        <th>Status</th>
+                        <th style="text-align: left; padding: 12px; font-size: 13px;">Data e Hora Exata</th>
+                        <th style="text-align: center; padding: 12px; font-size: 13px;">Tipo</th>
+                        <th style="text-align: left; padding: 12px; font-size: 13px;">Local</th>
                     </tr>
                 </thead>
-                <tbody id="corpo-relatorio"></tbody>
+                <tbody id="corpo-relatorio">
+                    </tbody>
             </table>
         </div>
-        <button class="btn" style="width:100%; margin-top:1.5rem;" onclick="fecharModais()">Fechar</button>
+
+        <div style="margin-top: 20px; display: flex; justify-content: space-between; align-items: center;">
+            <span id="total-registros" style="font-size: 0.85rem; font-weight: 600; color: #475569;">Total: 0 registros</span>
+            <button class="btn" style="padding: 10px 30px;" onclick="fecharModais()">Fechar</button>
+        </div>
     </div>
 </div>
 <script>
@@ -147,17 +163,15 @@
     let alunosAtuais = [];
 
     function iniciar() {
-    const configLocal = JSON.parse(localStorage.getItem("config_gestor_alunos"));
-    if (configLocal) {
-        document.getElementById('login-area').style.display = 'none';
-        document.getElementById('unidade-nome').innerText = configLocal.nome || "---";
-        document.getElementById('unidade-cnpj').innerText = configLocal.cnpj || "--.---.---/----.--";
-
-        // Atualiza a variável global config para as outras funções usarem
-        config = configLocal;
-        carregarAlunos();
+        const configLocal = JSON.parse(localStorage.getItem("config_gestor_alunos"));
+        if (configLocal) {
+            document.getElementById('login-area').style.display = 'none';
+            document.getElementById('unidade-nome').innerText = configLocal.nome || "---";
+            document.getElementById('unidade-cnpj').innerText = configLocal.cnpj || "--.---.---/----.--";
+            config = configLocal;
+            carregarAlunos();
+        }
     }
-}
 
     async function fazerLogin() {
         const cnpj = document.getElementById('l-cnpj').value.replace(/\D/g, '');
@@ -168,21 +182,19 @@
             body: JSON.stringify({ cnpj, senha })
         });
         if (res.ok) {
-        const dados = await res.json();
-        // Salvando tudo que vem do banco para usar na sidebar
-        localStorage.setItem("config_gestor_alunos", JSON.stringify({
-            id: dados.id,
-            nome: dados.nome_fantasia || dados.nome,
-            cnpj: dados.cnpj,
-            responsavel: dados.responsavel
-        }));
-        location.reload();
+            const dados = await res.json();
+            localStorage.setItem("config_gestor_alunos", JSON.stringify({
+                id: dados.id,
+                nome: dados.nome_fantasia || dados.nome,
+                cnpj: dados.cnpj,
+                responsavel: dados.responsavel
+            }));
+            location.reload();
+        }
     }
-}
 
     async function carregarAlunos() {
         try {
-            // Reutilizando a rota de busca por cliente_id, mas buscando na collection de alunos (ajuste no backend necessário)
             const res = await fetch(`${API_URL}/alunos/unidade/${config.id}`);
             alunosAtuais = await res.json();
             document.getElementById('lista-alunos').innerHTML = alunosAtuais.map(a => `
@@ -192,13 +204,13 @@
                     <td>${a.responsavel || '---'}</td>
                     <td><small>Senha: <b>${a.senha || '123'}</b></small></td>
                     <td style="text-align: right;">
-                        <button onclick="abrirRelatorio('${a.matricula}', '${a.nome}')" class="btn-icon" style="color:var(--primary)" title="Relatório de Frequência">
+                        <button onclick="abrirRelatorio('${a.matricula}', '${a.nome}')" class="btn-icon" style="color:var(--primary)" title="Relatório">
                             <i class="fas fa-chart-line"></i>
                         </button>
                         <button onclick="prepararEdicao('${a.matricula}')" class="btn-icon" style="color:var(--info)"><i class="fas fa-edit"></i></button>
                         <button onclick="abrirQR('${a.matricula}', '${a.nome}')" class="btn-icon" style="color:#000"><i class="fas fa-qrcode"></i></button>
                         <button onclick="removerAluno('${a.matricula}')" class="btn-icon" style="color:var(--danger)"><i class="fas fa-trash"></i></button>
-</td>
+                    </td>
                 </tr>
             `).join('');
         } catch (e) { console.error("Erro ao listar alunos."); }
@@ -215,16 +227,69 @@
             senha: document.getElementById('a-senha').value,
             cliente_id: config.id
         };
-
         const res = await fetch(isEdit ? `${API_URL}/alunos/${matricula}` : `${API_URL}/alunos`, {
             method: isEdit ? 'PUT' : 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify(dados)
         });
-
         if(res.ok) { fecharModais(); carregarAlunos(); }
     }
 
+    // --- FUNÇÃO DE RELATÓRIO DEFINITIVA (CORRETA) ---
+    async function abrirRelatorio(matricula, nome) {
+        const tbody = document.getElementById('corpo-relatorio');
+        const totalTxt = document.getElementById('total-registros');
+
+        document.getElementById('rel-nome-aluno').innerText = nome;
+        document.getElementById('rel-matricula-aluno').innerText = `ID/Matrícula: ${matricula}`;
+
+        // colspan="3" porque a tabela tem 3 colunas (Data, Tipo, Local)
+        tbody.innerHTML = '<tr><td colspan="3" style="text-align:center; padding:30px;">Buscando registros...</td></tr>';
+        document.getElementById('modalRelatorio').style.display = 'flex';
+
+        try {
+            const res = await fetch(`${API_URL}/presencas/aluno/${matricula}`);
+            const dados = await res.json();
+
+            if (!dados || dados.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="3" style="text-align:center; padding:30px; color:#94a3b8;">Nenhum registro encontrado.</td></tr>';
+                totalTxt.innerText = "Total: 0 registros";
+                return;
+            }
+
+            totalTxt.innerText = `Total: ${dados.length} registros encontrados`;
+
+            tbody.innerHTML = dados.map(p => {
+                const dataObj = new Date(p.timestamp);
+                const dataFormatada = dataObj.toLocaleDateString('pt-BR');
+                const horaFormatada = dataObj.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+
+                const isEntrada = p.status === 'ENTRADA';
+                const corStatus = isEntrada ? '#10b981' : '#3b82f6';
+                const iconStatus = isEntrada ? 'fa-arrow-right-to-bracket' : 'fa-arrow-right-from-bracket';
+
+                return `
+                    <tr style="border-bottom: 1px solid #f1f5f9;">
+                        <td style="padding: 14px; font-size: 0.9rem;">
+                            <span style="display:block; font-weight:600;">${dataFormatada}</span>
+                            <span style="color:#64748b; font-size:0.8rem;">às ${horaFormatada}</span>
+                        </td>
+                        <td style="padding: 14px; text-align: center;">
+                            <span style="background: ${corStatus}15; color: ${corStatus}; padding: 5px 10px; border-radius: 6px; font-size: 0.7rem; font-weight: 800; display: inline-flex; align-items: center; gap: 5px; border: 1px solid ${corStatus}30;">
+                                <i class="fas ${iconStatus}"></i> ${p.status || 'REGISTRO'}
+                            </span>
+                        </td>
+                        <td style="padding: 14px; font-size: 0.8rem; color: #64748b;">Totem Unidade</td>
+                    </tr>
+                `;
+            }).join('');
+        } catch (e) {
+            console.error(e);
+            tbody.innerHTML = '<tr><td colspan="3" style="text-align:center; color:var(--danger); padding:30px;">Falha ao conectar com o servidor.</td></tr>';
+        }
+    }
+
+    // Funções Auxiliares
     function prepararEdicao(mat) {
         const a = alunosAtuais.find(x => x.matricula === mat);
         document.getElementById('a-nome').value = a.nome;
@@ -265,35 +330,6 @@
 
     function sair() { localStorage.clear(); location.reload(); }
     iniciar();
-
-    async function abrirRelatorio(matricula, nome) {
-    document.getElementById('rel-nome-aluno').innerText = nome;
-    const tbody = document.getElementById('corpo-relatorio');
-    tbody.innerHTML = '<tr><td colspan="2" style="text-align:center">Carregando...</td></tr>';
-    document.getElementById('modalRelatorio').style.display = 'flex';
-
-    try {
-        // Ajuste: O backend precisa ter uma rota para filtrar presenças por matrícula
-        // Se ainda não tiver, você pode usar a rota geral de pontos filtrando no JS
-        const res = await fetch(`${API_URL}/presencas/aluno/${matricula}`);
-        const dados = await res.json();
-
-        if (dados.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="2" style="text-align:center">Nenhuma presença registrada.</td></tr>';
-            return;
-        }
-
-        tbody.innerHTML = dados.map(p => `
-            <tr>
-                <td>${new Date(p.timestamp).toLocaleString('pt-BR')}</td>
-                <td><span style="color:var(--success); font-weight:bold;">● Presente</span></td>
-            </tr>
-        `).join('');
-
-    } catch (e) {
-        tbody.innerHTML = '<tr><td colspan="2" style="text-align:center; color:red">Erro ao carregar dados.</td></tr>';
-    }
-}
 </script>
 </body>
 </html>
