@@ -3,16 +3,31 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PontoSaaS | Terminal Tablet</title>
+    <title>PontoSaaS | Terminal Híbrido (Face & QR)</title>
+    <!-- Biblioteca HTML5-QRCode mantida para a leitura híbrida -->
     <script src="https://unpkg.com/html5-qrcode"></script>
     <style>
         :root { --primary: #4f46e5; --bg: #0f172a; --card: #1e293b; --success: #22c55e; --danger: #ef4444; --info: #3b82f6; }
         body { background: var(--bg); color: white; font-family: 'Inter', sans-serif; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; overflow: hidden; }
-        .card { background: var(--card); padding: 30px; border-radius: 16px; width: 90%; max-width: 450px; text-align: center; box-shadow: 0 10px 25px rgba(0,0,0,0.3); }
+        
+        .card { background: var(--card); padding: 30px; border-radius: 16px; width: 90%; max-width: 480px; text-align: center; box-shadow: 0 10px 25px rgba(0,0,0,0.3); }
         input { width: 100%; padding: 14px; margin: 10px 0; border-radius: 8px; border: 1px solid #334155; background: #0f172a; color: white; box-sizing: border-box; font-size: 1rem; }
-        button { width: 100%; padding: 14px; background: var(--primary); color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; font-size: 1rem; transition: 0.2s; }
+        button { width: 100%; padding: 14px; background: var(--primary); color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; font-size: 1rem; transition: 0.2s; margin-top: 10px; }
         button:hover { opacity: 0.9; }
-        #reader { width: 100%; margin-top: 20px; border-radius: 12px; overflow: hidden; border: 2px solid #334155; }
+        
+        /* Área da Câmera (Serve tanto para Face quanto para QR) */
+        #reader-container { position: relative; width: 100%; height: 320px; background: #000; border-radius: 12px; overflow: hidden; margin-top: 20px; border: 2px solid #334155; display: flex; align-items: center; justify-content: center; }
+        #video, #reader { position: absolute; width: 100%; height: 100%; object-fit: cover; }
+        #reader video { object-fit: cover; } /* Força o plugin QR a cobrir a caixa */
+        
+        /* Guia visual para o rosto */
+        .overlay-guia { position: absolute; border: 2px dashed rgba(255, 255, 255, 0.5); width: 180px; height: 230px; border-radius: 50%; pointer-events: none; z-index: 10; display: none; }
+        
+        /* Controles de Modo (Face / QR) */
+        .toggle-group { display: flex; gap: 10px; margin-top: 15px; }
+        .btn-toggle { flex: 1; background: #334155; color: #94a3b8; border: 2px solid transparent; padding: 10px; }
+        .btn-toggle.active { background: rgba(79, 70, 229, 0.2); color: var(--primary); border-color: var(--primary); }
+
         #feedback {
             display: none; position: fixed; top: 20px; left: 50%; transform: translateX(-50%);
             padding: 20px 40px; border-radius: 12px; font-size: 1.5rem; font-weight: bold;
@@ -20,36 +35,65 @@
             animation: slideDown 0.5s ease-out; white-space: pre-wrap;
         }
         @keyframes slideDown { from { top: -100px; } to { top: 20px; } }
+        
         .info-text { margin-top: 15px; color: #94a3b8; font-size: 0.9rem; }
         #nome-unidade { color: var(--primary); font-weight: bold; }
+        
+        /* Esconde elementos do html5-qrcode para deixar limpo */
+        #reader__dashboard_section_csr, #reader__dashboard_section_swaplink { display: none !important; }
     </style>
 </head>
 <body>
 
     <div id="feedback"></div>
 
+    <!-- TELA DE LOGIN / ATIVAÇÃO DO TABLET -->
     <div id="login-area" class="card">
-        <h2>Ativar Tablet</h2>
+        <h2>Ativar Terminal</h2>
         <p class="info-text">Identifique a unidade para começar</p>
         <input type="text" id="t-cnpj" placeholder="CNPJ da Unidade">
         <input type="password" id="t-senha" placeholder="Senha de Acesso">
         <button onclick="ativarTablet()">Ativar Dispositivo</button>
     </div>
 
+    <!-- TELA DE REGISTRO HÍBRIDO (FACE OU QR CODE) -->
     <div id="ponto-area" class="card" style="display: none;">
         <h2 id="nome-unidade">Unidade Carregando...</h2>
-        <p>Aponte seu QR Code para a câmera</p>
+        
+        <!-- Seleção de Modo -->
+        <div class="toggle-group">
+            <button id="btn-modo-face" class="btn-toggle active" onclick="alternarModo('FACE')">📷 Rosto</button>
+            <button id="btn-modo-qr" class="btn-toggle" onclick="alternarModo('QR')">🔳 QR Code</button>
+        </div>
 
-        <div id="reader"></div>
+        <p id="instrucao-texto" class="info-text">Posicione o rosto no centro e clique para registrar</p>
 
-        <p class="info-text">O sistema detectará entrada/saída automaticamente.</p>
-        <button onclick="sair()" style="margin-top: 20px; background: #334155; padding: 8px;">Sair / Trocar Unidade</button>
+        <!-- Container da Câmera (usado pelas duas tecnologias) -->
+        <div id="reader-container">
+            <!-- Camada de Face -->
+            <video id="video" autoplay playsinline muted></video>
+            <canvas id="canvas" style="display:none;"></canvas>
+            <div id="guia-face" class="overlay-guia" style="display: block;"></div>
+            
+            <!-- Camada de QR Code -->
+            <div id="reader" style="display: none;"></div>
+        </div>
+
+        <!-- Botão de ação (Visível apenas no modo Face) -->
+        <button id="btn-captura-face" onclick="baterPontoFacial()">Registrar Ponto (Face)</button>
+        
+        <button onclick="sair()" style="background: #334155; padding: 10px; margin-top: 15px;">Sair / Trocar Unidade</button>
     </div>
 
     <script>
         const API_URL = "https://pontoback-tau.vercel.app/api";
         let config = JSON.parse(localStorage.getItem("config_tablet"));
-        let machineId = localStorage.getItem("machine_id") || "TAB-" + Math.random().toString(36).substr(2, 9).toUpperCase();
+        let machineId = localStorage.getItem("machine_id") || "TAB-" + Math.random().toString(36).substr(2, 6).toUpperCase();
+        
+        // Controles de câmera e scanner
+        let streamCamera = null;
+        let qrScanner = null;
+        let modoAtual = 'FACE'; // Modos: 'FACE' ou 'QR'
 
         if (!localStorage.getItem("machine_id")) localStorage.setItem("machine_id", machineId);
 
@@ -58,12 +102,12 @@
                 document.getElementById('login-area').style.display = 'none';
                 document.getElementById('ponto-area').style.display = 'block';
                 document.getElementById('nome-unidade').innerText = config.nome;
-                startScanner();
+                iniciarModoFace();
             }
         }
 
         async function ativarTablet() {
-            const cnpj = document.getElementById('t-cnpj').value;
+            const cnpj = document.getElementById('t-cnpj').value.replace(/\D/g, '');
             const senha = document.getElementById('t-senha').value;
 
             try {
@@ -84,10 +128,9 @@
                         body: JSON.stringify({
                             cliente_id: config.id,
                             machine_id: machineId,
-                            modelo: "Tablet Terminal"
+                            modelo: "Terminal Web Híbrido"
                         })
                     });
-
                     location.reload();
                 } else {
                     mostrarFeedback("Acesso negado!", "erro");
@@ -97,20 +140,96 @@
             }
         }
 
-        function startScanner() {
-            const scanner = new Html5QrcodeScanner("reader", {
-                fps: 10,
-                qrbox: { width: 250, height: 250 }
-            });
+        // --- GERENCIAMENTO DE MODOS (FACE / QR) ---
+        function alternarModo(novoModo) {
+            if (modoAtual === novoModo) return;
+            modoAtual = novoModo;
 
-            scanner.render(async (cpfLido) => {
-                // EVITA DUPLO CLIQUE OU LEITURA REPETIDA
+            document.getElementById('btn-modo-face').classList.toggle('active', novoModo === 'FACE');
+            document.getElementById('btn-modo-qr').classList.toggle('active', novoModo === 'QR');
+
+            if (novoModo === 'FACE') {
+                pararModoQR();
+                iniciarModoFace();
+            } else {
+                pararModoFace();
+                iniciarModoQR();
+            }
+        }
+
+        // --- MODO: RECONHECIMENTO FACIAL ---
+        async function iniciarModoFace() {
+            document.getElementById('video').style.display = 'block';
+            document.getElementById('guia-face').style.display = 'block';
+            document.getElementById('btn-captura-face').style.display = 'block';
+            document.getElementById('instrucao-texto').innerText = "Posicione o rosto no centro e clique para registrar";
+
+            try {
+                streamCamera = await navigator.mediaDevices.getUserMedia({ 
+                    video: { facingMode: "user" }, audio: false 
+                });
+                document.getElementById('video').srcObject = streamCamera;
+            } catch (err) {
+                mostrarFeedback("Erro: Câmera não autorizada", "erro");
+            }
+        }
+
+        function pararModoFace() {
+            if (streamCamera) {
+                streamCamera.getTracks().forEach(track => track.stop());
+                streamCamera = null;
+            }
+            document.getElementById('video').style.display = 'none';
+            document.getElementById('guia-face').style.display = 'none';
+            document.getElementById('btn-captura-face').style.display = 'none';
+        }
+
+        async function baterPontoFacial() {
+            if (window.processandoPonto) return;
+            window.processandoPonto = true;
+
+            const video = document.getElementById('video');
+            const canvas = document.getElementById('canvas');
+            
+            canvas.width = video.videoWidth || 640;
+            canvas.height = video.videoHeight || 480;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+            const imagemBase64 = canvas.toDataURL('image/jpeg', 0.85);
+            mostrarFeedback("Analisando biometria...", "info");
+
+            try {
+                const res = await fetch(`${API_URL}/ponto/facial`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        id_cliente: config.id,
+                        machine_id: machineId,
+                        imagem: imagemBase64,
+                        timestamp_local: new Date().toISOString()
+                    })
+                });
+                processarRespostaAPI(res);
+            } catch (e) {
+                mostrarFeedback("FALHA NA CONEXÃO", "erro");
+                setTimeout(() => { window.processandoPonto = false; }, 4000);
+            }
+        }
+
+        // --- MODO: QR CODE ---
+        function iniciarModoQR() {
+            document.getElementById('reader').style.display = 'block';
+            document.getElementById('instrucao-texto').innerText = "Aponte o seu crachá/QR Code para a câmera";
+            
+            qrScanner = new Html5QrcodeScanner("reader", { fps: 10, qrbox: { width: 250, height: 250 } });
+            
+            qrScanner.render(async (cpfLido) => {
                 if (window.processandoPonto) return;
                 window.processandoPonto = true;
 
-                // Garante que o CPF enviado seja apenas números (IMPORTANTE)
                 const cpfLimpo = cpfLido.replace(/\D/g, "");
-
+                
                 try {
                     const res = await fetch(`${API_URL}/ponto/registrar`, {
                         method: 'POST',
@@ -123,28 +242,40 @@
                             geo: "0,0"
                         })
                     });
-
-                    const data = await res.json();
-
-                    if (res.ok) {
-                        // O index.py deve retornar 'tipo' e 'horas'
-                        let msg = data.tipo === "ENTRADA"
-                            ? `BOM TRABALHO!\nEntrada: ${data.funcionario || ''}`
-                            : `ATÉ LOGO!\nSaída: ${data.horas || 0}h trabalhadas`;
-
-                        mostrarFeedback(msg, data.tipo === "ENTRADA" ? "sucesso" : "info");
-                    } else {
-                        mostrarFeedback(data.erro || "ERRO NO REGISTRO", "erro");
-                    }
+                    processarRespostaAPI(res);
                 } catch (e) {
                     mostrarFeedback("FALHA NA CONEXÃO", "erro");
-                } finally {
-                    // Espera 5 segundos para permitir nova leitura (tempo para o funcionário sair da frente)
-                    setTimeout(() => { window.processandoPonto = false; }, 5000);
+                    setTimeout(() => { window.processandoPonto = false; }, 4000);
                 }
             });
         }
 
+        function pararModoQR() {
+            if (qrScanner) {
+                qrScanner.clear().catch(e => console.error(e));
+                qrScanner = null;
+            }
+            document.getElementById('reader').style.display = 'none';
+        }
+
+        // --- PROCESSAMENTO COMUM DE RESPOSTA ---
+        async function processarRespostaAPI(res) {
+            const data = await res.json();
+            if (res.ok) {
+                let msg = data.tipo === "ENTRADA"
+                    ? `BOM TRABALHO!\nEntrada: ${data.funcionario || data.nome_funcionario || ''}`
+                    : `ATÉ LOGO!\nSaída: ${data.horas || data.horas_trabalhadas || 0}h trabalhadas`;
+                
+                mostrarFeedback(msg, data.tipo === "ENTRADA" ? "sucesso" : "info");
+            } else {
+                mostrarFeedback(data.erro || "Falha no registro", "erro");
+            }
+            
+            // Trava de 5 segundos para evitar duplo clique ou leitura repetida
+            setTimeout(() => { window.processandoPonto = false; }, 5000);
+        }
+
+        // --- UTILITÁRIOS ---
         function mostrarFeedback(mensagem, tipo) {
             const fb = document.getElementById('feedback');
             fb.innerText = mensagem;
@@ -158,7 +289,9 @@
         }
 
         function sair() {
-            if(confirm("Deseja desativar este tablet?")) {
+            if(confirm("Deseja desativar este terminal?")) {
+                pararModoFace();
+                pararModoQR();
                 localStorage.clear();
                 location.reload();
             }
