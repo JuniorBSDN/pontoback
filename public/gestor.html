@@ -39,6 +39,10 @@
         #resumo-horas-box { background: #f1f5f9; padding: 1.5rem; border-radius: 12px; margin-bottom: 1.5rem; border: 1px solid var(--border); }
         #qrcode-container { display: flex; justify-content: center; margin: 20px 0; }
 
+        /* Estilo da Câmera no Modal de Cadastro */
+        .camera-box-cad { position: relative; width: 100%; height: 240px; background: #000; border-radius: 8px; overflow: hidden; margin: 10px 0; display: flex; align-items: center; justify-content: center; }
+        .camera-box-cad video, .camera-box-cad canvas { position: absolute; width: 100%; height: 100%; object-fit: cover; }
+
         /* Estilo de Impressão (PDF) */
         @media print {
             .no-print, .sidebar, .main, .btn, input, select { display: none !important; }
@@ -81,6 +85,7 @@
                     <th>Nome / CPF</th>
                     <th>Setor</th>
                     <th>Salário</th>
+                    <th>Biometria</th>
                     <th>Ações</th>
                 </tr>
             </thead>
@@ -89,6 +94,7 @@
     </div>
 </main>
 
+<!-- MODAL DE CADASTRO COM FACIAL INTEGRADAS -->
 <div id="modalFunc" class="modal no-print">
     <div class="modal-content">
         <h3 id="titulo-modal-func">Cadastrar Funcionário</h3>
@@ -100,11 +106,26 @@
             <option value="CLT">CLT</option>
             <option value="PJ">PJ</option>
         </select>
+
+        <!-- Bloco de Captura Facial -->
+        <div style="margin-top: 15px; border-top: 1px solid var(--border); padding-top: 15px;">
+            <label style="font-weight:600; font-size:0.9rem;">Foto para Autenticação Facial:</label>
+            <div class="camera-box-cad">
+                <video id="video-cad" autoplay playsinline muted></video>
+                <canvas id="canvas-cad" style="display:none;"></canvas>
+            </div>
+            <button type="button" class="btn" style="background:#0284c7; width:100%; justify-content:center;" onclick="capturarFaceCadastro()">
+                <i class="fas fa-camera"></i> Capturar Rosto
+            </button>
+            <p id="status-foto" style="font-size: 0.85rem; color: #64748b; margin-top: 5px; text-align: center;">Nenhuma foto capturada.</p>
+        </div>
+
         <button class="btn" style="width:100%; margin-top:1rem;" onclick="salvarFuncionario()">Salvar</button>
         <button onclick="fecharModalCadastro()" style="width:100%; background:none; border:none; margin-top:10px; cursor:pointer; color:#64748b;">Cancelar</button>
     </div>
 </div>
 
+<!-- MODAL DE RELATÓRIOS (RESTAURADO) -->
 <div id="modalRelatorio" class="modal">
     <div class="modal-content" style="max-width: 850px;">
         <div class="no-print" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
@@ -140,6 +161,7 @@
     </div>
 </div>
 
+<!-- MODAL QR CODE (RESTAURADO) -->
 <div id="modalQR" class="modal no-print">
     <div class="modal-content" style="max-width: 400px; text-align: center;">
         <h3>Cartão de Ponto QR</h3>
@@ -151,7 +173,6 @@
 </div>
 
 <script>
-    // Configuração de URL automática
     const API_URL = window.location.hostname === "127.0.0.1" || window.location.hostname === "localhost"
         ? "http://127.0.0.1:5000/api"
         : "https://pontoback-tau.vercel.app/api";
@@ -159,6 +180,10 @@
     let config = JSON.parse(localStorage.getItem("config_gestor"));
     let funcionariosAtuais = [];
     let pontosCache = [];
+    
+    // Variáveis da Câmera
+    let imagemFacialBase64 = null;
+    let streamCad = null;
 
     function iniciar() {
         if (config) {
@@ -194,6 +219,7 @@
                     <td><strong>${f.nome}</strong><br><small>${f.cpf}</small></td>
                     <td>${f.setor || 'Geral'}<br><small>${f.tipo_contrato || 'CLT'}</small></td>
                     <td>R$ ${parseFloat(f.salario_base || 0).toFixed(2)}</td>
+                    <td><span style="font-weight:600; color:${f.possui_face ? 'green' : 'orange'}">${f.possui_face ? '✔ Sim' : 'Pendente'}</span></td>
                     <td>
                         <button onclick="prepararEdicao('${f.cpf}')" class="btn-edit"><i class="fas fa-edit"></i></button>
                         <button onclick="removerFuncionario('${f.cpf}')" class="btn-del"><i class="fas fa-trash"></i></button>
@@ -205,14 +231,7 @@
         } catch (e) { console.error("Erro ao carregar:", e); }
     }
 
-    function abrirQR(cpf, nome) {
-        document.getElementById('qr-nome-func').innerText = nome;
-        const container = document.getElementById('qrcode-container');
-        container.innerHTML = "";
-        new QRCode(container, { text: cpf, width: 200, height: 200 });
-        document.getElementById('modalQR').style.display = 'flex';
-    }
-
+    // --- BLOCO DE RELATÓRIOS E FILTROS RESTAURADO ---
     async function verRelatorio(cpf, nome) {
         document.getElementById('rel-nome-display').innerText = nome;
         document.getElementById('modalRelatorio').style.display = 'flex';
@@ -255,6 +274,37 @@
         renderizarTabelaPontos(filtrados);
     }
 
+    function abrirQR(cpf, nome) {
+        document.getElementById('qr-nome-func').innerText = nome;
+        const container = document.getElementById('qrcode-container');
+        container.innerHTML = "";
+        new QRCode(container, { text: cpf, width: 200, height: 200 });
+        document.getElementById('modalQR').style.display = 'flex';
+    }
+
+    // --- BLOCO DE CADASTRO COM CÂMERA ---
+    async function iniciarCameraCadastro() {
+        try {
+            streamCad = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" }, audio: false });
+            document.getElementById('video-cad').srcObject = streamCad;
+        } catch (err) {
+            alert("Não foi possível acessar a câmera para o cadastro facial.");
+        }
+    }
+
+    function capturarFaceCadastro() {
+        const video = document.getElementById('video-cad');
+        const canvas = document.getElementById('canvas-cad');
+        canvas.width = video.videoWidth || 640;
+        canvas.height = video.videoHeight || 480;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+        imagemFacialBase64 = canvas.toDataURL('image/jpeg', 0.85);
+        document.getElementById('status-foto').style.color = "var(--success)";
+        document.getElementById('status-foto').innerText = "✔ Rosto capturado com sucesso!";
+    }
+
     async function salvarFuncionario() {
         const campoCpf = document.getElementById('f-cpf');
         const isEdit = campoCpf.disabled;
@@ -266,7 +316,8 @@
             setor: document.getElementById('f-setor').value,
             salario_base: parseFloat(document.getElementById('f-salario').value || 0),
             tipo_contrato: document.getElementById('f-tipo').value,
-            cliente_id: config.id
+            cliente_id: config.id,
+            imagem_facial: imagemFacialBase64 // Adicionado o envio da imagem
         };
 
         const metodo = isEdit ? 'PUT' : 'POST';
@@ -290,7 +341,12 @@
         document.getElementById('f-salario').value = f.salario_base;
         document.getElementById('f-tipo').value = f.tipo_contrato;
         document.getElementById('titulo-modal-func').innerText = "Editar Funcionário";
+        
+        imagemFacialBase64 = null;
+        document.getElementById('status-foto').innerText = "Deixe em branco para manter a foto atual ou capture uma nova.";
+        
         document.getElementById('modalFunc').style.display = 'flex';
+        iniciarCameraCadastro();
     }
 
     async function removerFuncionario(cpf) {
@@ -304,10 +360,20 @@
         document.getElementById('f-nome').value = "";
         document.getElementById('f-cpf').value = "";
         document.getElementById('titulo-modal-func').innerText = "Novo Funcionário";
+        
+        imagemFacialBase64 = null;
+        document.getElementById('status-foto').style.color = "#64748b";
+        document.getElementById('status-foto').innerText = "Nenhuma foto capturada.";
+        
         document.getElementById('modalFunc').style.display = 'flex';
+        iniciarCameraCadastro();
     }
 
-    function fecharModalCadastro() { document.getElementById('modalFunc').style.display = 'none'; }
+    function fecharModalCadastro() { 
+        if(streamCad) { streamCad.getTracks().forEach(track => track.stop()); } // Desliga a câmera
+        document.getElementById('modalFunc').style.display = 'none'; 
+    }
+    
     function sair() { localStorage.clear(); location.reload(); }
     
     iniciar();
