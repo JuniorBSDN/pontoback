@@ -1,3 +1,6 @@
 flask
 flask-cors
 firebase-admin
+face_recognition
+numpy
+Pillow
