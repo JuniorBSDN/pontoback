@@ -3,8 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PontoSaaS | Terminal Híbrido (Face & QR)</title>
-    <!-- Biblioteca HTML5-QRCode mantida para a leitura híbrida -->
+    <title>PontoBack | Terminal de Ponto Híbrido</title>
     <script src="https://unpkg.com/html5-qrcode"></script>
     <style>
         :root { --primary: #4f46e5; --bg: #0f172a; --card: #1e293b; --success: #22c55e; --danger: #ef4444; --info: #3b82f6; }
@@ -15,17 +14,13 @@
         button { width: 100%; padding: 14px; background: var(--primary); color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; font-size: 1rem; transition: 0.2s; margin-top: 10px; }
         button:hover { opacity: 0.9; }
         
-        /* Área da Câmera (Serve tanto para Face quanto para QR) */
         #reader-container { position: relative; width: 100%; height: 320px; background: #000; border-radius: 12px; overflow: hidden; margin-top: 20px; border: 2px solid #334155; display: flex; align-items: center; justify-content: center; }
         #video, #reader { position: absolute; width: 100%; height: 100%; object-fit: cover; }
-        #reader video { object-fit: cover; } /* Força o plugin QR a cobrir a caixa */
+        #reader video { object-fit: cover; }
+        .overlay-guia { position: absolute; border: 2px dashed rgba(255, 255, 255, 0.6); width: 180px; height: 230px; border-radius: 50%; pointer-events: none; z-index: 10; display: block; }
         
-        /* Guia visual para o rosto */
-        .overlay-guia { position: absolute; border: 2px dashed rgba(255, 255, 255, 0.5); width: 180px; height: 230px; border-radius: 50%; pointer-events: none; z-index: 10; display: none; }
-        
-        /* Controles de Modo (Face / QR) */
         .toggle-group { display: flex; gap: 10px; margin-top: 15px; }
-        .btn-toggle { flex: 1; background: #334155; color: #94a3b8; border: 2px solid transparent; padding: 10px; }
+        .btn-toggle { flex: 1; background: #334155; color: #94a3b8; border: 2px solid transparent; padding: 10px; margin: 0; }
         .btn-toggle.active { background: rgba(79, 70, 229, 0.2); color: var(--primary); border-color: var(--primary); }
 
         #feedback {
@@ -38,8 +33,6 @@
         
         .info-text { margin-top: 15px; color: #94a3b8; font-size: 0.9rem; }
         #nome-unidade { color: var(--primary); font-weight: bold; }
-        
-        /* Esconde elementos do html5-qrcode para deixar limpo */
         #reader__dashboard_section_csr, #reader__dashboard_section_swaplink { display: none !important; }
     </style>
 </head>
@@ -47,7 +40,7 @@
 
     <div id="feedback"></div>
 
-    <!-- TELA DE LOGIN / ATIVAÇÃO DO TABLET -->
+    <!-- TELA DE ATIVAÇÃO DO TABLET -->
     <div id="login-area" class="card">
         <h2>Ativar Terminal</h2>
         <p class="info-text">Identifique a unidade para começar</p>
@@ -56,11 +49,10 @@
         <button onclick="ativarTablet()">Ativar Dispositivo</button>
     </div>
 
-    <!-- TELA DE REGISTRO HÍBRIDO (FACE OU QR CODE) -->
+    <!-- TELA DE PONTO HÍBRIDO -->
     <div id="ponto-area" class="card" style="display: none;">
         <h2 id="nome-unidade">Unidade Carregando...</h2>
         
-        <!-- Seleção de Modo -->
         <div class="toggle-group">
             <button id="btn-modo-face" class="btn-toggle active" onclick="alternarModo('FACE')">📷 Rosto</button>
             <button id="btn-modo-qr" class="btn-toggle" onclick="alternarModo('QR')">🔳 QR Code</button>
@@ -68,20 +60,14 @@
 
         <p id="instrucao-texto" class="info-text">Posicione o rosto no centro e clique para registrar</p>
 
-        <!-- Container da Câmera (usado pelas duas tecnologias) -->
         <div id="reader-container">
-            <!-- Camada de Face -->
             <video id="video" autoplay playsinline muted></video>
             <canvas id="canvas" style="display:none;"></canvas>
-            <div id="guia-face" class="overlay-guia" style="display: block;"></div>
-            
-            <!-- Camada de QR Code -->
+            <div id="guia-face" class="overlay-guia"></div>
             <div id="reader" style="display: none;"></div>
         </div>
 
-        <!-- Botão de ação (Visível apenas no modo Face) -->
         <button id="btn-captura-face" onclick="baterPontoFacial()">Registrar Ponto (Face)</button>
-        
         <button onclick="sair()" style="background: #334155; padding: 10px; margin-top: 15px;">Sair / Trocar Unidade</button>
     </div>
 
@@ -90,10 +76,9 @@
         let config = JSON.parse(localStorage.getItem("config_tablet"));
         let machineId = localStorage.getItem("machine_id") || "TAB-" + Math.random().toString(36).substr(2, 6).toUpperCase();
         
-        // Controles de câmera e scanner
         let streamCamera = null;
         let qrScanner = null;
-        let modoAtual = 'FACE'; // Modos: 'FACE' ou 'QR'
+        let modoAtual = 'FACE';
 
         if (!localStorage.getItem("machine_id")) localStorage.setItem("machine_id", machineId);
 
@@ -140,7 +125,6 @@
             }
         }
 
-        // --- GERENCIAMENTO DE MODOS (FACE / QR) ---
         function alternarModo(novoModo) {
             if (modoAtual === novoModo) return;
             modoAtual = novoModo;
@@ -157,7 +141,6 @@
             }
         }
 
-        // --- MODO: RECONHECIMENTO FACIAL ---
         async function iniciarModoFace() {
             document.getElementById('video').style.display = 'block';
             document.getElementById('guia-face').style.display = 'block';
@@ -217,7 +200,6 @@
             }
         }
 
-        // --- MODO: QR CODE ---
         function iniciarModoQR() {
             document.getElementById('reader').style.display = 'block';
             document.getElementById('instrucao-texto').innerText = "Aponte o seu crachá/QR Code para a câmera";
@@ -258,7 +240,6 @@
             document.getElementById('reader').style.display = 'none';
         }
 
-        // --- PROCESSAMENTO COMUM DE RESPOSTA ---
         async function processarRespostaAPI(res) {
             const data = await res.json();
             if (res.ok) {
@@ -271,11 +252,9 @@
                 mostrarFeedback(data.erro || "Falha no registro", "erro");
             }
             
-            // Trava de 5 segundos para evitar duplo clique ou leitura repetida
             setTimeout(() => { window.processandoPonto = false; }, 5000);
         }
 
-        // --- UTILITÁRIOS ---
         function mostrarFeedback(mensagem, tipo) {
             const fb = document.getElementById('feedback');
             fb.innerText = mensagem;
