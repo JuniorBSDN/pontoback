@@ -293,8 +293,12 @@
     function capturarFaceCadastro() {
         const video = document.getElementById('video-cad');
         const canvas = document.getElementById('canvas-cad');
-        canvas.width = video.videoWidth || 640;
-        canvas.height = video.videoHeight || 480;
+        if (!video.videoWidth || !video.videoHeight) {
+            alert("Aguarde a câmera inicializar completamente.");
+            return;
+        }
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
         canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
 
         imagemFacialBase64 = canvas.toDataURL('image/jpeg', 0.85);
@@ -303,7 +307,7 @@
     }
 
     async function salvarFuncionario() {
-        // Se tirou foto nova, exige o aceite da LGPD
+        // Validação obrigatória da LGPD caso uma nova foto tenha sido tirada
         if (imagemFacialBase64 && !document.getElementById('f-lgpd').checked) {
             return alert("Para salvar a biometria facial, é obrigatório confirmar o aceite da LGPD.");
         }
@@ -311,6 +315,10 @@
         const campoCpf = document.getElementById('f-cpf');
         const isEdit = campoCpf.disabled;
         const cpf = campoCpf.value.replace(/\D/g, '');
+
+        if (!cpf || !document.getElementById('f-nome').value) {
+            return alert("Preencha o Nome e o CPF do colaborador.");
+        }
 
         const dados = {
             nome: document.getElementById('f-nome').value,
@@ -321,22 +329,27 @@
             cliente_id: config.id
         };
 
-        // Só envia a imagem se uma nova foto foi capturada nesta edição/cadastro
         if (imagemFacialBase64) {
             dados.imagem_facial = imagemFacialBase64;
         }
 
-        const res = await fetch(isEdit ? `${API_URL}/funcionarios/${cpf}` : `${API_URL}/funcionarios`, {
-            method: isEdit ? 'PUT' : 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify(dados)
-        });
+        try {
+            const res = await fetch(isEdit ? `${API_URL}/funcionarios/${cpf}` : `${API_URL}/funcionarios`, {
+                method: isEdit ? 'PUT' : 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(dados)
+            });
 
-        if(res.ok) { 
-            fecharModalCadastro(); 
-            carregarFuncionarios(); 
-        } else { 
-            alert("Erro ao salvar dados do colaborador."); 
+            const respostaJson = await res.json();
+
+            if(res.ok) { 
+                fecharModalCadastro(); 
+                carregarFuncionarios(); 
+            } else { 
+                alert("Erro ao salvar: " + (respostaJson.erro || "Verifique os dados.")); 
+            }
+        } catch (err) {
+            alert("Falha de conexão com o servidor ao salvar colaborador.");
         }
     }
 
@@ -352,7 +365,8 @@
         
         document.getElementById('f-lgpd').checked = false;
         imagemFacialBase64 = null;
-        document.getElementById('status-foto').innerText = "Deixe em branco para manter a foto atual ou capture nova.";
+        document.getElementById('status-foto').style.color = "#64748b";
+        document.getElementById('status-foto').innerText = f.possui_face ? "✔ Face já cadastrada (opcional alterar)." : "Nenhuma foto capturada.";
         
         document.getElementById('modalFunc').style.display = 'flex';
         iniciarCameraCadastro();
