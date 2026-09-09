@@ -3,62 +3,76 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PontoBack | Terminal de Ponto Híbrido</title>
+    <title>PontoBack | Terminal de Ponto Corporativo</title>
     <script src="https://unpkg.com/html5-qrcode"></script>
     <style>
         :root { --primary: #4f46e5; --bg: #0f172a; --card: #1e293b; --success: #22c55e; --danger: #ef4444; --info: #3b82f6; }
-        body { background: var(--bg); color: white; font-family: 'Inter', sans-serif; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; overflow: hidden; }
+        * { box-sizing: border-box; }
+        body { background: var(--bg); color: white; font-family: 'Inter', sans-serif; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; overflow: hidden; transition: background 0.3s ease; }
         
-        .card { background: var(--card); padding: 30px; border-radius: 16px; width: 90%; max-width: 480px; text-align: center; box-shadow: 0 10px 25px rgba(0,0,0,0.3); }
-        input { width: 100%; padding: 14px; margin: 10px 0; border-radius: 8px; border: 1px solid #334155; background: #0f172a; color: white; box-sizing: border-box; font-size: 1rem; }
-        button { width: 100%; padding: 14px; background: var(--primary); color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; font-size: 1rem; transition: 0.2s; margin-top: 10px; }
-        button:hover { opacity: 0.9; }
+        .card { background: var(--card); padding: 30px; border-radius: 20px; width: 90%; max-width: 480px; text-align: center; box-shadow: 0 20px 35px rgba(0,0,0,0.4); border: 1px solid #334155; }
+        input { width: 100%; padding: 14px; margin: 10px 0; border-radius: 10px; border: 1px solid #334155; background: #0f172a; color: white; font-size: 1rem; outline: none; transition: border-color 0.2s; }
+        input:focus { border-color: var(--primary); }
         
-        #reader-container { position: relative; width: 100%; height: 320px; background: #000; border-radius: 12px; overflow: hidden; margin-top: 20px; border: 2px solid #334155; display: flex; align-items: center; justify-content: center; }
+        button { width: 100%; padding: 14px; background: var(--primary); color: white; border: none; border-radius: 10px; cursor: pointer; font-weight: bold; font-size: 1rem; transition: all 0.2s; margin-top: 10px; }
+        button:hover { opacity: 0.95; transform: translateY(-1px); }
+        button:active { transform: translateY(0); }
+        
+        #reader-container { position: relative; width: 100%; height: 320px; background: #000; border-radius: 14px; overflow: hidden; margin-top: 20px; border: 2px solid #475569; display: flex; align-items: center; justify-content: center; }
         #video, #reader { position: absolute; width: 100%; height: 100%; object-fit: cover; }
         #reader video { object-fit: cover; }
-        .overlay-guia { position: absolute; border: 2px dashed rgba(255, 255, 255, 0.6); width: 180px; height: 230px; border-radius: 50%; pointer-events: none; z-index: 10; display: block; }
         
-        .toggle-group { display: flex; gap: 10px; margin-top: 15px; }
-        .btn-toggle { flex: 1; background: #334155; color: #94a3b8; border: 2px solid transparent; padding: 10px; margin: 0; }
-        .btn-toggle.active { background: rgba(79, 70, 229, 0.2); color: var(--primary); border-color: var(--primary); }
+        /* Animação e Guia de Rosto Fluida */
+        .overlay-guia { position: absolute; border: 2px dashed rgba(255, 255, 255, 0.7); width: 180px; height: 230px; border-radius: 50%; pointer-events: none; z-index: 10; animation: pulseGuia 2s infinite ease-in-out; }
+        @keyframes pulseGuia { 0% { border-color: rgba(255, 255, 255, 0.4); } 50% { border-color: rgba(79, 70, 229, 0.9); } 100% { border-color: rgba(255, 255, 255, 0.4); } }
+        
+        .toggle-group { display: flex; gap: 10px; margin-top: 15px; background: #0f172a; padding: 4px; border-radius: 10px; border: 1px solid #334155; }
+        .btn-toggle { flex: 1; background: transparent; color: #94a3b8; border: none; padding: 10px; border-radius: 8px; font-size: 0.9rem; margin: 0; }
+        .btn-toggle.active { background: var(--primary); color: white; font-weight: bold; }
 
+        /* Feedback Visual Dinâmico na Tela Inteira */
         #feedback {
-            display: none; position: fixed; top: 20px; left: 50%; transform: translateX(-50%);
-            padding: 20px 40px; border-radius: 12px; font-size: 1.5rem; font-weight: bold;
-            z-index: 9999; text-align: center; box-shadow: 0 5px 15px rgba(0,0,0,0.4);
-            animation: slideDown 0.5s ease-out; white-space: pre-wrap;
+            display: none; position: fixed; inset: 0; background: rgba(15, 23, 42, 0.92);
+            z-index: 9999; flex-direction: column; align-items: center; justify-content: center;
+            text-align: center; padding: 20px; animation: fadeIn 0.2s ease-out;
         }
-        @keyframes slideDown { from { top: -100px; } to { top: 20px; } }
+        #feedback-icon { font-size: 4rem; margin-bottom: 15px; }
+        #feedback-text { font-size: 1.8rem; font-weight: bold; max-width: 600px; line-height: 1.4; white-space: pre-wrap; }
+        @keyframes fadeIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
         
         .info-text { margin-top: 15px; color: #94a3b8; font-size: 0.9rem; }
-        #nome-unidade { color: var(--primary); font-weight: bold; }
+        #nome-unidade { color: #818cf8; font-weight: bold; font-size: 1.2rem; margin-bottom: 5px; }
         #reader__dashboard_section_csr, #reader__dashboard_section_swaplink { display: none !important; }
     </style>
 </head>
 <body>
 
-    <div id="feedback"></div>
-
-    <!-- TELA DE ATIVAÇÃO DO TABLET -->
-    <div id="login-area" class="card">
-        <h2>Ativar Terminal</h2>
-        <p class="info-text">Identifique a unidade para começar</p>
-        <input type="text" id="t-cnpj" placeholder="CNPJ da Unidade">
-        <input type="password" id="t-senha" placeholder="Senha de Acesso">
-        <button onclick="ativarTablet()">Ativar Dispositivo</button>
+    <!-- TELA DE FEEDBACK CORPORATIVA (IMPACTO VISUAL SÓLIDO) -->
+    <div id="feedback">
+        <div id="feedback-icon">✔</div>
+        <div id="feedback-text">Sucesso!</div>
     </div>
 
-    <!-- TELA DE PONTO HÍBRIDO -->
+    <!-- TELA DE ATIVAÇÃO DO DISPOSITIVO -->
+    <div id="login-area" class="card">
+        <h2>Ativação do Terminal</h2>
+        <p class="info-text">Insira as credenciais fornecidas pelo gestor</p>
+        <input type="text" id="t-cnpj" placeholder="CNPJ da Unidade">
+        <input type="password" id="t-senha" placeholder="Senha de Acesso">
+        <button onclick="ativarTablet()">Ativar Terminal</button>
+    </div>
+
+    <!-- TELA DE REGISTRO DE PONTO -->
     <div id="ponto-area" class="card" style="display: none;">
-        <h2 id="nome-unidade">Unidade Carregando...</h2>
+        <div id="nome-unidade">Unidade</div>
+        <p class="info-text" style="margin-top:0">Sistema de Frequência Inteligente</p>
         
         <div class="toggle-group">
-            <button id="btn-modo-face" class="btn-toggle active" onclick="alternarModo('FACE')">📷 Rosto</button>
-            <button id="btn-modo-qr" class="btn-toggle" onclick="alternarModo('QR')">🔳 QR Code</button>
+            <button id="btn-modo-face" class="btn-toggle active" onclick="alternarModo('FACE')">📷 Reconhecimento Facial</button>
+            <button id="btn-modo-qr" class="btn-toggle" onclick="alternarModo('QR')">🔳 Crachá (QR Code)</button>
         </div>
 
-        <p id="instrucao-texto" class="info-text">Posicione o rosto no centro e clique para registrar</p>
+        <p id="instrucao-texto" class="info-text">Centralize o rosto no círculo e clique abaixo</p>
 
         <div id="reader-container">
             <video id="video" autoplay playsinline muted></video>
@@ -67,8 +81,8 @@
             <div id="reader" style="display: none;"></div>
         </div>
 
-        <button id="btn-captura-face" onclick="baterPontoFacial()">Registrar Ponto (Face)</button>
-        <button onclick="sair()" style="background: #334155; padding: 10px; margin-top: 15px;">Sair / Trocar Unidade</button>
+        <button id="btn-captura-face" onclick="baterPontoFacial()">Registrar Ponto por Face</button>
+        <button onclick="sair()" style="background: #334155; padding: 10px; margin-top: 15px; font-size: 0.85rem;">Desativar / Trocar Unidade</button>
     </div>
 
     <script>
@@ -94,6 +108,7 @@
         async function ativarTablet() {
             const cnpj = document.getElementById('t-cnpj').value.replace(/\D/g, '');
             const senha = document.getElementById('t-senha').value;
+            if(!cnpj || !senha) return alert("Preencha todos os campos.");
 
             try {
                 const res = await fetch(`${API_URL}/clientes/login-tablet`, {
@@ -113,15 +128,15 @@
                         body: JSON.stringify({
                             cliente_id: config.id,
                             machine_id: machineId,
-                            modelo: "Terminal Web Híbrido"
+                            modelo: "Terminal Web Corporativo"
                         })
                     });
                     location.reload();
                 } else {
-                    mostrarFeedback("Acesso negado!", "erro");
+                    mostrarFeedback("Acesso Negado", "CNPJ ou senha inválidos.", "erro");
                 }
             } catch (e) {
-                mostrarFeedback("Erro ao conectar com servidor", "erro");
+                mostrarFeedback("Erro de Conexão", "Não foi possível contatar o servidor.", "erro");
             }
         }
 
@@ -145,15 +160,16 @@
             document.getElementById('video').style.display = 'block';
             document.getElementById('guia-face').style.display = 'block';
             document.getElementById('btn-captura-face').style.display = 'block';
-            document.getElementById('instrucao-texto').innerText = "Posicione o rosto no centro e clique para registrar";
+            document.getElementById('instrucao-texto').innerText = "Centralize o rosto no círculo e clique abaixo";
 
             try {
                 streamCamera = await navigator.mediaDevices.getUserMedia({ 
-                    video: { facingMode: "user" }, audio: false 
+                    video: { facingMode: "user", width: { ideal: 1280 }, height: { ideal: 720 } }, 
+                    audio: false 
                 });
                 document.getElementById('video').srcObject = streamCamera;
             } catch (err) {
-                mostrarFeedback("Erro: Câmera não autorizada", "erro");
+                mostrarFeedback("Erro de Câmera", "Permissão negada ou hardware indisponível.", "erro");
             }
         }
 
@@ -169,18 +185,23 @@
 
         async function baterPontoFacial() {
             if (window.processandoPonto) return;
-            window.processandoPonto = true;
-
+            
             const video = document.getElementById('video');
+            if (!video.videoWidth || !video.videoHeight) {
+                mostrarFeedback("Aguarde", "A câmera está inicializando...", "erro");
+                return;
+            }
+
+            window.processandoPonto = true;
             const canvas = document.getElementById('canvas');
             
-            canvas.width = video.videoWidth || 640;
-            canvas.height = video.videoHeight || 480;
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
             const ctx = canvas.getContext('2d');
             ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
             const imagemBase64 = canvas.toDataURL('image/jpeg', 0.85);
-            mostrarFeedback("Analisando biometria...", "info");
+            mostrarFeedback("Analisando...", "Processando biometria facial...", "info");
 
             try {
                 const res = await fetch(`${API_URL}/ponto/facial`, {
@@ -195,22 +216,23 @@
                 });
                 processarRespostaAPI(res);
             } catch (e) {
-                mostrarFeedback("FALHA NA CONEXÃO", "erro");
+                mostrarFeedback("Falha de Rede", "Verifique sua conexão com a internet.", "erro");
                 setTimeout(() => { window.processandoPonto = false; }, 4000);
             }
         }
 
         function iniciarModoQR() {
             document.getElementById('reader').style.display = 'block';
-            document.getElementById('instrucao-texto').innerText = "Aponte o seu crachá/QR Code para a câmera";
+            document.getElementById('instrucao-texto').innerText = "Aponte o crachá com QR Code para a lente";
             
-            qrScanner = new Html5QrcodeScanner("reader", { fps: 10, qrbox: { width: 250, height: 250 } });
+            qrScanner = new Html5QrcodeScanner("reader", { fps: 10, qrbox: { width: 240, height: 240 } });
             
             qrScanner.render(async (cpfLido) => {
                 if (window.processandoPonto) return;
                 window.processandoPonto = true;
 
                 const cpfLimpo = cpfLido.replace(/\D/g, "");
+                mostrarFeedback("Lendo Crachá...", "Processando...", "info");
                 
                 try {
                     const res = await fetch(`${API_URL}/ponto/registrar`, {
@@ -226,7 +248,7 @@
                     });
                     processarRespostaAPI(res);
                 } catch (e) {
-                    mostrarFeedback("FALHA NA CONEXÃO", "erro");
+                    mostrarFeedback("Falha de Rede", "Erro ao conectar com servidor.", "erro");
                     setTimeout(() => { window.processandoPonto = false; }, 4000);
                 }
             });
@@ -244,26 +266,34 @@
             const data = await res.json();
             if (res.ok) {
                 let msg = data.tipo === "ENTRADA"
-                    ? `BOM TRABALHO!\nEntrada: ${data.funcionario || data.nome_funcionario || ''}`
-                    : `ATÉ LOGO!\nSaída: ${data.horas || data.horas_trabalhadas || 0}h trabalhadas`;
+                    ? `BOM TRABALHO!\nEntrada Registrada\n${data.funcionario || data.nome_funcionario || ''}`
+                    : `ATÉ LOGO!\nSaída Registrada\n${data.horas || data.horas_trabalhadas || 0}h trabalhadas`;
                 
-                mostrarFeedback(msg, data.tipo === "ENTRADA" ? "sucesso" : "info");
+                mostrarFeedback("✔", msg, "sucesso");
             } else {
-                mostrarFeedback(data.erro || "Falha no registro", "erro");
+                mostrarFeedback("✖", data.erro || "Rosto não reconhecido", "erro");
             }
             
-            setTimeout(() => { window.processandoPonto = false; }, 5000);
+            setTimeout(() => { window.processandoPonto = false; }, 4500);
         }
 
-        function mostrarFeedback(mensagem, tipo) {
+        function mostrarFeedback(icone, mensagem, tipo) {
             const fb = document.getElementById('feedback');
-            fb.innerText = mensagem;
-            fb.style.display = 'block';
+            const iconEl = document.getElementById('feedback-icon');
+            const textEl = document.getElementById('feedback-text');
+            
+            iconEl.innerText = icone;
+            textEl.innerText = mensagem;
 
-            if (tipo === "sucesso") fb.style.background = "var(--success)";
-            else if (tipo === "info") fb.style.background = "var(--info)";
-            else fb.style.background = "var(--danger)";
+            if (tipo === "sucesso") {
+                iconEl.style.color = "var(--success)";
+            } else if (tipo === "info") {
+                iconEl.style.color = "var(--info)";
+            } else {
+                iconEl.style.color = "var(--danger)";
+            }
 
+            fb.style.display = 'flex';
             setTimeout(() => { fb.style.display = 'none'; }, 4000);
         }
 
