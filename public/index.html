@@ -303,6 +303,7 @@
     }
 
     async function salvarFuncionario() {
+        // Se tirou foto nova, exige o aceite da LGPD
         if (imagemFacialBase64 && !document.getElementById('f-lgpd').checked) {
             return alert("Para salvar a biometria facial, é obrigatório confirmar o aceite da LGPD.");
         }
@@ -317,9 +318,13 @@
             setor: document.getElementById('f-setor').value,
             salario_base: parseFloat(document.getElementById('f-salario').value || 0),
             tipo_contrato: document.getElementById('f-tipo').value,
-            cliente_id: config.id,
-            imagem_facial: imagemFacialBase64
+            cliente_id: config.id
         };
+
+        // Só envia a imagem se uma nova foto foi capturada nesta edição/cadastro
+        if (imagemFacialBase64) {
+            dados.imagem_facial = imagemFacialBase64;
+        }
 
         const res = await fetch(isEdit ? `${API_URL}/funcionarios/${cpf}` : `${API_URL}/funcionarios`, {
             method: isEdit ? 'PUT' : 'POST',
