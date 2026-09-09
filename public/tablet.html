@@ -183,6 +183,26 @@
             document.getElementById('btn-captura-face').style.display = 'none';
         }
 
+        // Função auxiliar robusta para capturar a geolocalização real do navegador
+        function obterGeolocalizacao() {
+            return new Promise((resolve) => {
+                if (!navigator.geolocation) {
+                    resolve("0,0");
+                    return;
+                }
+                navigator.geolocation.getCurrentPosition(
+                    (pos) => {
+                        resolve(`${pos.coords.latitude},${pos.coords.longitude}`);
+                    },
+                    (err) => {
+                        console.warn("GPS negado ou indisponível:", err.message);
+                        resolve("0,0");
+                    },
+                    { timeout: 7000, enableHighAccuracy: true }
+                );
+            });
+        }
+
         async function baterPontoFacial() {
             if (window.processandoPonto) return;
             
@@ -201,9 +221,12 @@
             ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
             const imagemBase64 = canvas.toDataURL('image/jpeg', 0.85);
-            mostrarFeedback("Analisando...", "Processando biometria facial...", "info");
+            mostrarFeedback("Analisando...", "Processando biometria e GPS...", "info");
 
             try {
+                // CORREÇÃO: Coleta a geolocalização real antes de disparar o fetch para a API
+                const geoLocal = await obterGeolocalizacao();
+
                 const res = await fetch(`${API_URL}/ponto/facial`, {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
@@ -211,6 +234,7 @@
                         id_cliente: config.id,
                         machine_id: machineId,
                         imagem: imagemBase64,
+                        geo: geoLocal, // CORREÇÃO: Variável geo injetada corretamente no payload
                         timestamp_local: new Date().toISOString()
                     })
                 });
@@ -235,6 +259,9 @@
                 mostrarFeedback("Lendo Crachá...", "Processando...", "info");
                 
                 try {
+                    // CORREÇÃO: O modo QR Code também passa a capturar a geolocalização real
+                    const geoLocal = await obterGeolocalizacao();
+
                     const res = await fetch(`${API_URL}/ponto/registrar`, {
                         method: 'POST',
                         headers: {'Content-Type': 'application/json'},
@@ -243,7 +270,7 @@
                             id_funcionario: cpfLimpo,
                             machine_id: machineId,
                             timestamp_local: new Date().toISOString(),
-                            geo: "0,0"
+                            geo: geoLocal // CORREÇÃO: Substituído o "0,0" estático pelo GPS real
                         })
                     });
                     processarRespostaAPI(res);
