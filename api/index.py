@@ -48,13 +48,11 @@ def obter_vetor_facial(b64_str):
     except Exception:
         return None
 
-
 # --- LOGIN ADMINISTRATIVO (DONO) ---
 @app.route('/api/admin/login', methods=['POST'])
 def login_admin():
     dados = request.json or {}
-    # Aceita tanto 'senha' quanto 'password' para evitar qualquer conflito com o front-end
-    senha_digitada = str(dados.get('senha') or dados.get('password') or '').strip()
+    senha_digitada = str(dados.get('senha', '')).strip()
     senha_mestra = os.getenv("ADMIN_PASSWORD", "admin123")
 
     if senha_digitada == senha_mestra:
