@@ -134,6 +134,7 @@ def registrar_ponto():
     try:
         dados = request.json or {}
         cpf = "".join(filter(str.isdigit, str(dados.get('id_funcionario', ''))))
+        geo_recebido = dados.get('geo', '0,0') # Captura o GPS enviado pelo front-end
         f_ref = db.collection('funcionarios').document(cpf).get()
         if not f_ref.exists:
             return jsonify({"erro": "CPF não encontrado"}), 404
@@ -153,8 +154,14 @@ def registrar_ponto():
             horas = round((agora - inicio).total_seconds() / 3600, 2)
 
         novo_ponto = {
-            "id_funcionario": cpf, "funcionario": func['nome'], "id_cliente": dados.get('id_cliente'),
-            "tipo": tipo, "timestamp_servidor": agora.isoformat(), "horas_trabalhadas": horas
+            "id_funcionario": cpf, 
+            "funcionario": func['nome'], 
+            "id_cliente": dados.get('id_cliente'),
+            "tipo": tipo, 
+            "timestamp_servidor": agora.isoformat(), 
+            "horas_trabalhadas": horas,
+            "geo": geo_recebido, # Salva a geolocalização no banco
+            "metodo": "qrcode"
         }
         db.collection('pontos').add(novo_ponto)
         return jsonify({"tipo": tipo, "funcionario": func['nome'], "horas": horas}), 200
@@ -162,13 +169,14 @@ def registrar_ponto():
         return jsonify({"erro": str(e)}), 500
 
 
-# --- REGISTRO DE PONTO POR RECONHECIMENTO FACIAL (CORRIGIDO) ---
+# --- REGISTRO DE PONTO POR RECONHECIMENTO FACIAL ---
 @app.route('/api/ponto/facial', methods=['POST'])
 def registrar_ponto_facial():
     try:
         dados = request.json or {}
         cliente_id = dados.get('id_cliente')
         imagem_base64 = dados.get('imagem')
+        geo_recebido = dados.get('geo', '0,0') # Captura o GPS enviado pelo front-end
 
         if not cliente_id or not imagem_base64:
             return jsonify({"erro": "Dados insuficientes para reconhecimento"}), 400
@@ -182,13 +190,12 @@ def registrar_ponto_facial():
         docs = db.collection('funcionarios').where('cliente_id', '==', cliente_id).stream()
 
         melhor_match = None
-        menor_distancia = 0.55  # Tolerância. Abaixo de 0.6 é considerado a mesma pessoa.
+        menor_distancia = 0.55  # Tolerância rigorosa de compatibilidade
 
         for doc in docs:
             f = doc.to_dict()
             vetor_salvo = f.get('face_encoding')
             if vetor_salvo:
-                # Calcula a distância (diferença) entre a foto da câmera e a salva no banco
                 dist = face_recognition.face_distance([np.array(vetor_salvo)], np.array(vetor_camera))[0]
                 if dist < menor_distancia:
                     menor_distancia = dist
@@ -213,8 +220,14 @@ def registrar_ponto_facial():
             horas = round((agora - inicio).total_seconds() / 3600, 2)
 
         novo_ponto = {
-            "id_funcionario": cpf, "funcionario": melhor_match['nome'], "id_cliente": cliente_id,
-            "tipo": tipo, "timestamp_servidor": agora.isoformat(), "horas_trabalhadas": horas, "metodo": "facial"
+            "id_funcionario": cpf, 
+            "funcionario": melhor_match['nome'], 
+            "id_cliente": cliente_id,
+            "tipo": tipo, 
+            "timestamp_servidor": agora.isoformat(), 
+            "horas_trabalhadas": horas, 
+            "metodo": "facial",
+            "geo": geo_recebido # Salva a geolocalização no banco
         }
         db.collection('pontos').add(novo_ponto)
         return jsonify({"tipo": tipo, "nome_funcionario": melhor_match['nome'], "horas_trabalhadas": horas}), 200
