@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="pt-br" class="scroll-smooth">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PontoBack | Gestão de Ponto Digital via QR Code</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        .glass { background: rgba(15, 23, 42, 0.8); backdrop-filter: blur(12px); }
+        @keyframes float { 0% { transform: translateY(0px); } 50% { transform: translateY(-10px); } 100% { transform: translateY(0px); } }
+        .float-animation { animation: float 4s ease-in-out infinite; }
+        /* Garantir que as imagens do fluxo não fiquem gigantes em telas menores */
+        .flow-image { max-height: 400px; width: auto; object-fit: contain; }
+    </style>
+</head>
+
+<body class="bg-slate-950 text-slate-200 font-sans">
+    <nav class="fixed w-full z-50 glass border-b border-slate-800">
+        <div class="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
+            <div class="text-2xl font-black bg-gradient-to-r from-blue-400 to-emerald-400 bg-clip-text text-transparent italic">
+                PONTO BACK
+            </div>
+            <div class="hidden md:flex space-x-8 text-xs font-bold uppercase tracking-widest">
+                <a href="#visao" class="hover:text-emerald-400 transition">Visão Geral</a>
+                <a href="#fluxo" class="hover:text-emerald-400 transition">O Fluxo</a>
+                <a href="#relatorios" class="hover:text-emerald-400 transition">PDF</a>
+                <a href="#leis" class="hover:text-emerald-400 transition">Legislação</a>
+            </div>
+            <button onclick="toggleModal()" class="bg-emerald-500 hover:bg-emerald-600 text-slate-950 px-6 py-2 rounded-full font-black text-xs transition shadow-lg shadow-emerald-500/20">
+                Acessar Demonstração
+            </button>
+        </div>
+    </nav>
+
+<DIV STYLE="BACKGROUND-IMAGE:URL('https://img.freepik.com/vetores-gratis/fundo-preto-com-luz-de-ponto-de-foco_1017-27230.jpg?semt=ais_hybrid&w=740&q=80" class="bg-cover bg-center bg-no-repeat">
+    <section class="pt-28 pb-16 px-15">
+        <div class="max-w-5xl mx-auto text-center">
+            <span class="text-emerald-400 font-mono text-xs tracking-[0.3em] uppercase mb-4 block">Produto back informática</span>
+            <h1 class="text-5xl md:text-7xl font-black text-white mb-6 leading-tight">
+                PontoBack: Gestão Modernizada via <br> <span class="text-blue-500 underline decoration-emerald-500">QR Code Scanner</span>
+            </h1>
+            <p class="text-lg text-slate-400 mb-10 max-w-2xl mx-auto">
+                Uma solução full-stack para registro de ponto de funcionários, integrando um painel administrativo intuitivo com um terminal de tablet rápido e seguro.
+            </p>
+            <div class="flex flex-col md:flex-row justify-center gap-4">
+                <a href="#visao" class="bg-blue-600 hover:bg-blue-700 text-white px-10 py-4 rounded-2xl font-bold text-lg transition shadow-xl shadow-blue-900/40 text-center">
+                    Ver Detalhes do Projeto
+                </a>
+                 <button onclick="toggleModal()" class="bg-slate-800 hover:bg-slate-700 text-slate-300 px-10 py-4 rounded-2xl font-bold text-lg transition border border-slate-700">
+                    Testar Demonstração
+                </button>
+            </div>
+        </div>
+    </section>
+</DIV>
+
+    <section id="visao" class="py-24 bg-slate-900/30 border-y border-slate-800">
+        <div class="max-w-7xl mx-auto px-4">
+            <h2 class="text-center text-3xl font-bold mb-16 italic uppercase tracking-tighter text-white">Visão Geral do Sistema</h2>
+            <div class="grid md:grid-cols-2 gap-12 text-lg text-slate-400 leading-relaxed">
+                <div>
+                    <h3 class="text-2xl font-bold text-white mb-4 underline decoration-emerald-500">O Problema</h3>
+                    <p>Muitas empresas ainda dependem de sistemas biométricos caros, difíceis de manter ou, pior, planilhas manuais. Isso gera fraudes, erros de cálculo e uma carga administrativa enorme para o RH.</p>
+                </div>
+                <div>
+                    <h3 class="text-2xl font-bold text-white mb-4 underline decoration-blue-500">A Solução</h3>
+                    <p>Desenvolvi o PontoBack como uma plataforma web integrada de dois módulos:</p>
+                    <ul class="list-disc list-inside mt-2 space-y-1 text-sm text-slate-300">
+                        <li><b>Painel Gestor:</b> Cadastro e gestão centralizada.</li>
+                        <li><b>Terminal Tablet:</b> Registro rápido via câmera.</li>
+                    </ul>
+                </div>
+            </div>
+            <div class="mt-16 p-8 rounded-3xl bg-slate-900 border border-slate-800 text-center">
+                <h4 class="font-mono text-xs tracking-[0.2em] uppercase text-emerald-400 mb-4">Stack Tecnológico</h4>
+                <div class="flex flex-wrap justify-center gap-6 text-2xl text-slate-500">
+                    <i class="fab fa-react" title="React/Next.js"></i>
+                    <i class="fab fa-node-js" title="Node.js"></i>
+                    <i class="fas fa-database" title="Firebase/Firestore"></i>
+                    <i class="fab fa-python" title="Python (Relatórios PDF)"></i>
+                    <i class="fab fa-css3-alt" title="TailwindCSS"></i>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section id="fluxo" class="py-24">
+        <div class="max-w-7xl mx-auto px-4">
+            <h2 class="text-center text-3xl font-bold mb-16 italic uppercase tracking-tighter text-white">O Fluxo de Experiência do Usuário (UI/UX)</h2>
+            <p class="text-center text-slate-400 text-lg mb-20 max-w-2xl mx-auto">
+                O sistema foi projetado para ter uma curva de aprendizado zero para o funcionário e ser extremamente eficiente para o gestor.
+            </p>
+
+            <div class="space-y-32">
+
+                <div class="flex flex-col lg:flex-row items-center gap-16">
+                    <div class="w-full lg:w-1/2 space-y-8">
+                        <div>
+                            <span class="text-emerald-400 font-mono text-xs uppercase mb-2 block">Perspectiva do Gestor</span>
+                            <h3 class="text-4xl font-black text-white leading-tight">1. Dashboard Central e Login Seguro</h3>
+                            <p class="text-slate-400 text-lg mt-4 leading-relaxed">
+                                Começamos no Painel Gestor. O login administrativo (imagem inferior) garante a segurança. Uma vez logado, o gestor tem uma visão clara de todos os funcionários cadastrados, seus setores e salários. Esta tela central é o ponto de partida para qualquer ação.
+                            </p>
+                        </div>
+                        <div class="bg-slate-900 p-6 rounded-3xl border border-slate-800 shadow-xl">
+                            <h4 class="font-bold text-white mb-3">Cadastro de Novo Funcionário</h4>
+                            <p class="text-slate-400 text-sm">
+                                Ao clicar em "+ Novo Funcionário", um formulário modal limpo e focado se abre. Aqui, o gestor preenche os dados essenciais em uma interface projetada para minimizar erros de digitação.
+                            </p>
+                        </div>
+                    </div>
+                    <div class="w-full lg:w-1/2 grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
+                        <img src="https://i.imgur.com/ak8iRw2.jpeg" alt="Dashboard Gestor" class="rounded-xl border border-slate-700 shadow-lg flow-image">
+                        <img src="https://i.imgur.com/mR9Dg7v.jpeg" alt="Login Gestor" class="rounded-xl border border-slate-700 shadow-lg flow-image">
+                        <img src="https://i.imgur.com/vurgJnW.jpeg" alt="Cadastro de Funcionário" class="rounded-xl border border-slate-700 shadow-lg flow-image md:col-span-2 mx-auto mt-[-50px]">
+                    </div>
+                </div>
+
+                <div class="flex flex-col-reverse lg:flex-row items-center gap-16 bg-slate-900/50 p-12 rounded-[2rem] border border-slate-800">
+                    <div class="w-full lg:w-1/2 text-center lg:text-left">
+                        <span class="text-blue-400 font-mono text-xs uppercase mb-2 block">Transição Administração &rArr; Funcionário</span>
+                        <h3 class="text-4xl font-black text-white leading-tight">2. Geração do Cartão de Ponto</h3>
+                        <p class="text-slate-400 text-lg mt-4 leading-relaxed max-w-xl mx-auto lg:mx-0">
+                            Imediatamente após o cadastro, o sistema gera um "Cartão QR Code" único para o funcionário. Esta tela modal permite que o gestor visualize o código e clique em "Imprimir Cartão" para entregar ao funcionário sua credencial de ponto física ou digital.
+                        </p>
+                    </div>
+                    <div class="w-full lg:w-1/2 flex justify-center">
+                        <img src="https://i.imgur.com/fKFs37y.jpeg" alt="Geração de QR Code" class="rounded-xl border border-slate-700 shadow-2xl flow-image">
+                    </div>
+                </div>
+
+                <div class="flex flex-col lg:flex-row items-center gap-16">
+                    <div class="w-full lg:w-1/2 grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
+                        <img src="https://i.imgur.com/YDKztNU.jpeg" alt="Ativação do Tablet" class="rounded-xl border border-slate-700 shadow-lg flow-image">
+                        <img src="https://i.imgur.com/ZP6xa5s.jpeg" alt="Scanner de QR Code" class="rounded-xl border border-slate-700 shadow-lg flow-image">
+                    </div>
+                    <div class="w-full lg:w-1/2 space-y-8">
+                        <div>
+                            <span class="text-orange-400 font-mono text-xs uppercase mb-2 block">Perspectiva do Funcionário - O Terminal</span>
+                            <h3 class="text-4xl font-black text-white leading-tight">3. Registro de Ponto via Câmera</h3>
+                            <p class="text-slate-400 text-lg mt-4 leading-relaxed">
+                                O módulo Terminal (Tablet) é configurado uma única vez na unidade. Após a ativação, o terminal fica em modo de "espera ativa". O funcionário simplesmente aponta seu Cartão QR Code para a câmera. O sistema detecta o código e registra a entrada ou saída instantaneamente, sem botões ou senhas.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+                 <div class="flex flex-col-reverse lg:flex-row items-center gap-16 bg-blue-950/20 p-12 rounded-[2rem] border border-blue-900/30">
+                    <div class="w-full lg:w-1/2 space-y-8">
+                         <div>
+                            <span class="text-white font-mono text-xs uppercase mb-2 block">Relatórios e Transparência</span>
+                            <h3 class="text-4xl font-black text-white leading-tight">4. Folha de Ponto Individual</h3>
+                            <p class="text-slate-300 text-lg mt-4 leading-relaxed">
+                                De volta ao Painel Gestor, o RH acessa a Folha de Ponto Individual de qualquer funcionário. Esta interface permite filtrar por data e exibe um log detalhado de todas as Entradas e Saídas, calculando automaticamente a duração e o total de horas no período.
+                            </p>
+                        </div>
+                        <div class="bg-slate-900/50 p-6 rounded-3xl border border-slate-800">
+                            <p class="text-slate-400 text-sm">
+                                Os status são coloridos (Verde/Azul) para facilitar a leitura e auditoria.
+                            </p>
+                        </div>
+                    </div>
+                    <div class="w-full lg:w-1/2 flex justify-center">
+                        <img src="https://i.imgur.com/UH2tMdw.jpeg" alt="Folha de Ponto Individual" class="rounded-xl border border-blue-700 shadow-2xl flow-image">
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </section>
+
+    <section id="relatorios" class="py-24 bg-slate-900/30 border-y border-slate-800">
+        <div class="max-w-7xl mx-auto px-4 flex flex-col md:flex-row items-center gap-16">
+            <div class="w-full md:w-1/2 float-animation space-y-8">
+                <img src="https://i.imgur.com/mJuxZ9m.jpeg" alt="Fluxo de Impressão de Relatório" class="rounded-xl border border-slate-700 shadow-xl flow-image mx-auto block">
+            </div>
+            <div class="w-full md:w-1/2">
+                <h2 class="text-4xl font-black text-white mb-6 italic underline decoration-blue-500">Relatórios em PDF</h2>
+                <p class="text-slate-400 text-lg mb-6 leading-relaxed">
+                    Gere espelhos de ponto profissionais em segundos. O algoritmo em Python processa todas as jornadas e entrega um documento pronto para assinatura e contabilidade, perfeitamente formatado para impressão ou exportação.
+                </p>
+                <ul class="space-y-3 font-bold text-emerald-400">
+                    <li><i class="fas fa-check text-xs mr-2"></i> Exportação Direta via Navegador</li>
+                    <li><i class="fas fa-check text-xs mr-2"></i> Validação Automática de Horas</li>
+                    <li><i class="fas fa-check text-xs mr-2"></i> Layout Padrão MTP (Portaria 671)</li>
+                </ul>
+            </div>
+        </div>
+    </section>
+
+    <section id="leis" class="py-20 bg-emerald-950/10 border-y border-emerald-900/30">
+        <div class="max-w-4xl mx-auto px-4 text-center">
+            <h2 class="text-2xl font-bold mb-8 flex items-center justify-center gap-4 text-emerald-400">
+                <i class="fas fa-balance-scale"></i> CONFORMIDADE JURÍDICA
+            </h2>
+            <div class="grid md:grid-cols-2 gap-8 text-left">
+                <div class="bg-slate-900/50 p-6 rounded-2xl border border-emerald-800/30">
+                    <h4 class="font-bold text-white mb-2 underline decoration-emerald-500">Portaria 671 (MTP)</h4>
+                    <p class="text-xs text-slate-400">Atendemos aos requisitos de registro eletrônico (REP-P), garantindo que os dados originais jamais sejam alterados sem rastro de auditoria.</p>
+                </div>
+                <div class="bg-slate-900/50 p-6 rounded-2xl border border-emerald-800/30">
+                    <h4 class="font-bold text-white mb-2 underline decoration-emerald-500">LGPD & Segurança</h4>
+                    <p class="text-xs text-slate-400">Dados criptografados via Firebase Auth e Firestore, com políticas de privacidade alinhadas à Lei Geral de Proteção de Dados.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="py-24 bg-slate-900/10 text-center">
+        <div class="max-w-xl mx-auto px-4">
+            <h2 class="text-4xl font-black text-white mb-6">Gostou da Solução?</h2>
+            <p class="text-slate-400 text-lg mb-10 leading-relaxed">
+                O PontoBack foi projetado para reduzir o tempo de registro de ponto em até 80% e eliminar erros de cálculo manual, proporcionando transparência total. Vamos conversar sobre como posso criar soluções inteligentes para o seu negócio.
+            </p>
+            <a href="https://api.whatsapp.com/send?phone=5591983252639&text=Solu%C3%A7%C3%B5es+TI&fbclid=PAZXh0bgNhZW0CMTEAAac46VnZCA7fhc8oJkShVZgWhNdcwtb10UA5qGrc1jt0DxZjnOAsb5iJhUlVIQ_aem_3xxPypeVE9cvwMP-rFfj1Q" target="_blank" class="bg-emerald-500 hover:bg-emerald-600 text-slate-950 px-10 py-4 rounded-full font-black text-lg transition shadow-xl shadow-emerald-500/20 text-center">
+               Falar com Airton Junior
+            </a>
+        </div>
+    </section>
+
+    <footer class="py-12 border-t border-slate-800 text-center">
+        <p class="text-slate-500 text-xs">Desenvolvido por <span class="text-emerald-500 font-bold">Airton Junior - T.I - Back Informática </span></p>
+        <p class="text-[10px] text-slate-700 mt-2 uppercase">Vigia/PA | 2026</p>
+    </footer>
+
+    <div id="downloadModal" class="fixed inset-0 z-[60] hidden items-center justify-center px-4">
+        <div onclick="toggleModal()" class="absolute inset-0 bg-slate-950/80 backdrop-blur-md"></div>
+        <div class="relative bg-slate-900 border border-slate-700 w-full max-w-sm p-8 rounded-[2rem] shadow-2xl">
+            <button onclick="toggleModal()" class="absolute top-4 right-4 text-slate-500 hover:text-white"><i class="fas fa-times"></i></button>
+            <h3 class="text-xl font-black text-center mb-6">ACESSAR DEMONSTRAÇÃO</h3>
+            <div class="space-y-4">
+                <a href="https://pontoback-tau.vercel.app/gestor.html" target="_blank" class="flex items-center gap-4 p-4 bg-slate-800 rounded-2xl border border-slate-700 hover:border-blue-500 transition">
+                    <i class="fas fa-user-tie text-2xl text-blue-400"></i>
+                    <div class="text-left"><b class="block text-sm">Painel Gestor</b><small class="text-slate-500">Simule a Gestão do RH</small></div>
+                </a>
+                <a href="https://pontoback-tau.vercel.app/tablet.html" target="_blank" class="flex items-center gap-4 p-4 bg-slate-800 rounded-2xl border border-slate-700 hover:border-emerald-500 transition">
+                    <i class="fas fa-tablet-alt text-2xl text-emerald-400"></i>
+                    <div class="text-left"><b class="block text-sm">Terminal Tablet</b><small class="text-slate-500">Simule o Ponto do Funcionário</small></div>
+                </a>
+                <div class="p-4 bg-slate-950 rounded-xl border border-slate-800 text-slate-600 text-[10px] text-center italic mt-4">
+                    Credenciais de Teste (Gestor): CNPJ: `123123` | Senha: `123`
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function toggleModal() {
+            const modal = document.getElementById('downloadModal');
+            if (modal.classList.contains('hidden')) {
+                modal.classList.replace('hidden', 'flex');
+                document.body.style.overflow = 'hidden';
+            } else {
+                modal.classList.replace('flex', 'hidden');
+                document.body.style.overflow = 'auto';
+            }
+        }
+    </script>
+</body>
+</html>
