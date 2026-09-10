@@ -99,31 +99,26 @@
     const API_URL = "https://pontoback-tau.vercel.app/api";
     let clientesCache = [];
 
-    async function validarAcessoDono() {
-        const senha = prompt("Senha Administrativa:");
-        if (!senha) return window.location.reload();
+    async function fazerLoginMaster() {
+    const senhaDigitada = document.getElementById('l-senha').value.trim(); // Ajuste para o ID real do seu input de senha
 
-        try {
-            const res = await fetch(`${API_URL}/admin/login`, {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({ senha })
-            });
-            if (!res.ok) {
-                alert("Acesso Negado!");
-                window.location.reload();
-            } else {
-                document.body.style.display = "block";
-                carregarEmpresas();
-            }
-        } catch (e) {
-            alert("Erro de conexão com o servidor.");
-            window.location.reload();
+    try {
+        const res = await fetch(`${API_URL}/admin/login`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ senha: senhaDigitada }) // O Python exige a chave 'senha'
+        });
+
+        if (res.ok) {
+            localStorage.setItem("master_logado", "true");
+            location.reload();
+        } else {
+            alert("Senha incorreta!");
         }
+    } catch (e) {
+        alert("Erro de conexão com o servidor.");
     }
-    document.body.style.display = "none";
-    validarAcessoDono();
-
+}
     function abrirModal() {
         document.getElementById('form-empresa').reset();
         document.getElementById('edit-id').value = "";
