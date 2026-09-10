@@ -55,6 +55,7 @@ def login_admin():
     dados = request.json or {}
     senha_digitada = str(dados.get('senha', '')).strip()
     senha_mestra = os.getenv("ADMIN_PASSWORD", "admin123")
+
     if senha_digitada == senha_mestra:
         return jsonify({"auth": True}), 200
     return jsonify({"erro": "Senha incorreta"}), 401
@@ -134,7 +135,7 @@ def registrar_ponto():
     try:
         dados = request.json or {}
         cpf = "".join(filter(str.isdigit, str(dados.get('id_funcionario', ''))))
-        geo_recebido = dados.get('geo', '0,0') # Captura o GPS enviado pelo front-end
+        geo_recebido = dados.get('geo', '0,0')
         f_ref = db.collection('funcionarios').document(cpf).get()
         if not f_ref.exists:
             return jsonify({"erro": "CPF não encontrado"}), 404
@@ -160,7 +161,7 @@ def registrar_ponto():
             "tipo": tipo, 
             "timestamp_servidor": agora.isoformat(), 
             "horas_trabalhadas": horas,
-            "geo": geo_recebido, # Salva a geolocalização no banco
+            "geo": geo_recebido,
             "metodo": "qrcode"
         }
         db.collection('pontos').add(novo_ponto)
@@ -176,21 +177,19 @@ def registrar_ponto_facial():
         dados = request.json or {}
         cliente_id = dados.get('id_cliente')
         imagem_base64 = dados.get('imagem')
-        geo_recebido = dados.get('geo', '0,0') # Captura o GPS enviado pelo front-end
+        geo_recebido = dados.get('geo', '0,0')
 
         if not cliente_id or not imagem_base64:
             return jsonify({"erro": "Dados insuficientes para reconhecimento"}), 400
 
-        # Converte a foto do tablet em vetor matemático
         vetor_camera = obter_vetor_facial(imagem_base64)
         if not vetor_camera:
             return jsonify({"erro": "Nenhum rosto claro detectado na câmera."}), 400
 
-        # Busca funcionários da unidade
         docs = db.collection('funcionarios').where('cliente_id', '==', cliente_id).stream()
 
         melhor_match = None
-        menor_distancia = 0.55  # Tolerância rigorosa de compatibilidade
+        menor_distancia = 0.55
 
         for doc in docs:
             f = doc.to_dict()
@@ -227,7 +226,7 @@ def registrar_ponto_facial():
             "timestamp_servidor": agora.isoformat(), 
             "horas_trabalhadas": horas, 
             "metodo": "facial",
-            "geo": geo_recebido # Salva a geolocalização no banco
+            "geo": geo_recebido
         }
         db.collection('pontos').add(novo_ponto)
         return jsonify({"tipo": tipo, "nome_funcionario": melhor_match['nome'], "horas_trabalhadas": horas}), 200
@@ -248,7 +247,7 @@ def criar_func():
             if vetor:
                 dados['face_encoding'] = vetor
                 dados['possui_face'] = True
-                del dados['imagem_facial']  # Remove a imagem pesada para não sobrecarregar o banco
+                del dados['imagem_facial']
             else:
                 return jsonify({"erro": "Rosto não detectado na foto de cadastro."}), 400
         else:
