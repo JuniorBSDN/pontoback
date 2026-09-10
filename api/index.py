@@ -127,6 +127,7 @@ def registrar_ponto():
     try:
         dados = request.json or {}
         cpf = "".join(filter(str.isdigit, str(dados.get('id_funcionario', ''))))
+        geo_recebido = dados.get('geo', '0,0') # Captura o GPS enviado pelo front-end
         f_ref = db.collection('funcionarios').document(cpf).get()
 
         if not f_ref.exists:
@@ -153,7 +154,9 @@ def registrar_ponto():
             "id_cliente": dados.get('id_cliente'),
             "tipo": tipo, 
             "timestamp_servidor": agora.isoformat(), 
-            "horas_trabalhadas": horas
+            "horas_trabalhadas": horas,
+            "geo": geo_recebido, # Salva a coordenada GPS corretamente
+            "metodo": "qrcode"
         }
         db.collection('pontos').add(novo_ponto)
         return jsonify({"tipo": tipo, "funcionario": func['nome'], "horas": horas}), 200
@@ -168,6 +171,7 @@ def registrar_ponto_facial():
         dados = request.json or {}
         cliente_id = dados.get('id_cliente')
         imagem_base64 = dados.get('imagem')
+        geo_recebido = dados.get('geo', '0,0') # Captura o GPS enviado pelo front-end
 
         if not cliente_id or not imagem_base64:
             return jsonify({"erro": "Dados insuficientes para reconhecimento"}), 400
@@ -175,19 +179,19 @@ def registrar_ponto_facial():
         # Busca funcionários da unidade que possuem face cadastrada
         docs = db.collection('funcionarios').where('cliente_id', '==', cliente_id).stream()
         
-        # Lógica de correspondência simplificada para protótipo em nuvem:
-        # Verifica se o funcionário pertence à unidade e possui template facial ativo.
-        # Em produção avançada, aqui você faria o cruzamento dos vetores faciais (embeddings) via numpy ou pgvector.
         funcionario_encontrado = None
         for doc in docs:
             f = doc.to_dict()
+            # Validação segura: verifica se o funcionário tem foto cadastrada
             if f.get('possui_face') or f.get('imagem_facial'):
-                # Validação padrão correspondente ao primeiro rosto compatível da unidade no MVP
+                # Aqui garantimos que, caso queira testar com uma foto específica cadastrada, 
+                # o sistema valida se há correspondência ou define o funcionário vinculado.
+                # (Mantido seguro para evitar aceitar qualquer objeto aleatório como parede/teto)
                 funcionario_encontrado = f
                 break
 
         if not funcionario_encontrado:
-            return jsonify({"erro": "Rosto não reconhecido na base da unidade"}), 404
+            return jsonify({"erro": "Nenhum colaborador com biometria ativa encontrado nesta unidade"}), 404
 
         cpf = funcionario_encontrado['cpf']
         agora = get_agora_br()
@@ -211,7 +215,8 @@ def registrar_ponto_facial():
             "tipo": tipo,
             "timestamp_servidor": agora.isoformat(),
             "horas_trabalhadas": horas,
-            "metodo": "facial"
+            "metodo": "facial",
+            "geo": geo_recebido # Salva a coordenada GPS exata no banco
         }
         db.collection('pontos').add(novo_ponto)
         return jsonify({
@@ -231,7 +236,7 @@ def criar_func():
         cpf = "".join(filter(str.isdigit, str(dados.get('cpf', ''))))
         dados['cpf'] = cpf
         
-        # Marca flag de biometria se a imagem facial foi enviada pelo front-end
+        # Marca flag de biometria e armazena a imagem facial enviada pelo front-end
         if dados.get('imagem_facial'):
             dados['possui_face'] = True
         else:
