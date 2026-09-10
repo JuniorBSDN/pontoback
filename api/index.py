@@ -53,13 +53,13 @@ def obter_vetor_facial(b64_str):
 @app.route('/api/admin/login', methods=['POST'])
 def login_admin():
     dados = request.json or {}
-    senha_digitada = str(dados.get('senha', '')).strip()
+    # Aceita tanto 'senha' quanto 'password' para evitar qualquer conflito com o front-end
+    senha_digitada = str(dados.get('senha') or dados.get('password') or '').strip()
     senha_mestra = os.getenv("ADMIN_PASSWORD", "admin123")
 
     if senha_digitada == senha_mestra:
         return jsonify({"auth": True}), 200
     return jsonify({"erro": "Senha incorreta"}), 401
-
 
 # --- GERENCIAMENTO DE CLIENTES ---
 @app.route('/api/clientes', methods=['GET', 'POST'])
